@@ -72,6 +72,9 @@ async function verifyMicrosoftIdToken(idToken) {
   if (!matchingKey.x5c || !matchingKey.x5c.length) {
     throw new Error('JWK is missing the certificate chain (x5c)');
   }
+  if (!matchingKey.x5c[0] || !matchingKey.x5c[0].trim()) {
+    throw new Error('JWK certificate is empty or malformed');
+  }
   
   // Wrap raw certificate payload into standard 64-char block lines
   const certLines = matchingKey.x5c[0].match(/.{1,64}/g);
