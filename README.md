@@ -11,6 +11,7 @@ An interactive, high-performance web-based learning and worksheet system designe
 - **Teams Sync & SSO**: Login using Microsoft credentials and push grades directly into Teams assignments.
 - **Guest / Code Login**: Fallback mode allowing students to join with an assignment code and name (no MSAL tenant required).
 - **Auto-Save**: Automatic draft saving to SQLite database every 20 seconds.
+- **AI Worksheet Drafting**: Teachers/admins can generate compact worksheet JSON drafts in the builder via **Gemini API** or **Ollama**.
 
 ---
 
@@ -45,6 +46,17 @@ Copy the `.env.example` in backend:
 cp backend/.env.example backend/.env
 ```
 Edit the `.env` file with your credentials and configuration.
+
+If you want AI worksheet generation in the teacher builder, set at least one provider:
+```env
+# Gemini
+GEMINI_API_KEY=your-key
+GEMINI_MODEL=gemini-2.5-flash
+
+# Ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1
+```
 
 ### 3. Install & Start Backend
 ```bash
