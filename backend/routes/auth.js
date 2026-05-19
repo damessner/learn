@@ -1,18 +1,116 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const DEFAULT_DEV_SECRET = 'dev-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_DEV_SECRET;
 const JWT_EXPIRES = '24h';
+const MS_TENANT_ID = process.env.MS_TENANT_ID;
+const MS_CLIENT_ID = process.env.MS_CLIENT_ID;
+const ALLOW_INSECURE_MS_LOGIN = process.env.ALLOW_INSECURE_MS_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
+
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === DEFAULT_DEV_SECRET) {
+  throw new Error('JWT_SECRET must be set in production.');
+}
+
+let cachedOpenIdConfig = null;
+let cachedJwks = null;
+
+function base64UrlDecode(value) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - normalized.length % 4) % 4);
+  return Buffer.from(padded, 'base64').toString('utf8');
+}
+
+function parseJwtSegment(token, segmentIndex) {
+  const parts = (token || '').split('.');
+  if (parts.length !== 3 || !parts[segmentIndex]) {
+    throw new Error('Malformed token');
+  }
+  return JSON.parse(base64UrlDecode(parts[segmentIndex]));
+}
+
+async function getOpenIdConfig() {
+  if (cachedOpenIdConfig) return cachedOpenIdConfig;
+  if (!MS_TENANT_ID) throw new Error('MS_TENANT_ID is required for Microsoft login');
+  const { default: fetch } = await import('node-fetch');
+  const resp = await fetch(`https://login.microsoftonline.com/${MS_TENANT_ID}/v2.0/.well-known/openid-configuration`);
+  if (!resp.ok) throw new Error(`Failed to load OpenID config: ${resp.status}`);
+  cachedOpenIdConfig = await resp.json();
+  return cachedOpenIdConfig;
+}
+
+async function getJwks() {
+  if (cachedJwks) return cachedJwks;
+  const { default: fetch } = await import('node-fetch');
+  const config = await getOpenIdConfig();
+  const resp = await fetch(config.jwks_uri);
+  if (!resp.ok) throw new Error(`Failed to load Microsoft JWKS: ${resp.status}`);
+  cachedJwks = await resp.json();
+  return cachedJwks;
+}
+
+function certToPem(cert) {
+  const lines = cert.match(/.{1,64}/g) || [];
+  return `-----BEGIN CERTIFICATE-----\n${lines.join('\n')}\n-----END CERTIFICATE-----`;
+}
+
+async function verifyMicrosoftIdToken(idToken) {
+  if (!idToken) throw new Error('Missing Microsoft idToken');
+  if (!MS_CLIENT_ID || !MS_TENANT_ID) throw new Error('Microsoft login is not configured');
+
+  const header = parseJwtSegment(idToken, 0);
+  if (header.alg !== 'RS256' || !header.kid) {
+    throw new Error('Unsupported token signing algorithm');
+  }
+
+  const jwks = await getJwks();
+  const key = (jwks.keys || []).find(k => k.kid === header.kid);
+  if (!key || !key.x5c || !key.x5c[0]) {
+    throw new Error('Signing key not found for Microsoft token');
+  }
+
+  const publicKey = crypto.createPublicKey(certToPem(key.x5c[0]));
+  const payload = jwt.verify(idToken, publicKey, {
+    algorithms: ['RS256'],
+    audience: MS_CLIENT_ID,
+    issuer: [
+      `https://login.microsoftonline.com/${MS_TENANT_ID}/v2.0`,
+      `https://sts.windows.net/${MS_TENANT_ID}/`
+    ]
+  });
+
+  if (payload.tid && payload.tid !== MS_TENANT_ID) {
+    throw new Error('Token tenant mismatch');
+  }
+
+  return {
+    msId: payload.oid || payload.sub,
+    name: payload.name || payload.preferred_username,
+    email: payload.email || payload.preferred_username || ''
+  };
+}
 
 // ─── Microsoft OAuth2 callback ───────────────────────────────────────────────
 // After MSAL client-side auth, the frontend sends us the id_token.
 // We verify it and create/update the user in our DB.
 router.post('/microsoft', async (req, res) => {
   try {
-    const { idToken, accessToken, name, email, msId } = req.body;
+    const { idToken, name: fallbackName, email: fallbackEmail, msId: fallbackMsId } = req.body;
+    let profile;
+
+    if (idToken) {
+      profile = await verifyMicrosoftIdToken(idToken);
+    } else if (ALLOW_INSECURE_MS_LOGIN) {
+      profile = { msId: fallbackMsId, name: fallbackName, email: fallbackEmail };
+    } else {
+      return res.status(400).json({ error: 'Microsoft idToken is required' });
+    }
+
+    const { name, email, msId } = profile;
 
     if (!msId || !name) {
       return res.status(400).json({ error: 'Missing required fields from Microsoft token' });

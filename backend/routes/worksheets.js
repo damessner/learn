@@ -11,7 +11,19 @@ router.get('/', requireAuth, (req, res) => {
   const { role, userId } = req.user;
 
   let worksheets;
-  if (role === 'student') {
+  if (req.user.isGuest) {
+    worksheets = db.prepare(`
+      SELECT w.id, w.title, w.description, w.subject, w.grade_level,
+             w.total_points, w.created_at,
+             a.id as assignment_id, a.due_date, a.class_name,
+             s.score, s.submitted_at
+      FROM worksheets w
+      JOIN assignments a ON a.worksheet_id = w.id
+      LEFT JOIN submissions s ON s.assignment_id = a.id AND s.user_id = ?
+      WHERE a.id = ?
+      ORDER BY a.due_date ASC
+    `).all(userId, req.user.assignmentId);
+  } else if (role === 'student') {
     // Students see worksheets assigned to them via active assignments
     worksheets = db.prepare(`
       SELECT w.id, w.title, w.description, w.subject, w.grade_level,
@@ -42,6 +54,10 @@ router.get('/', requireAuth, (req, res) => {
 
 // ─── Get single worksheet ──────────────────────────────────────────────────────
 router.get('/:id', requireAuth, (req, res) => {
+  if (req.user.isGuest && req.params.id !== req.user.assignmentId) {
+    return res.status(403).json({ error: 'Guest token is restricted to one assignment' });
+  }
+
   const db = getDB();
   let worksheet = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(req.params.id);
 

@@ -5,9 +5,9 @@
       <span class="points">{{ points }} pts</span>
     </div>
 
-    <div class="instruction" v-html="instruction"></div>
+    <div class="instruction">{{ instruction }}</div>
 
-    <div class="matching-container">
+    <div class="matching-container" ref="canvasHostRef">
       <!-- SVG Canvas for Lines -->
       <svg class="connections-canvas">
         <line 
@@ -101,7 +101,9 @@ const selectedRight = ref(null)
 const leftRefs = ref([])
 const rightRefs = ref([])
 const exerciseRef = ref(null)
+const canvasHostRef = ref(null)
 const drawnLines = ref([])
+let resizeObserver = null
 
 const isGraded = computed(() => !!props.feedback)
 
@@ -154,8 +156,8 @@ const checkAndMatch = () => {
 
 // Draw connection lines on SVG
 const calculateLines = () => {
-  if (!exerciseRef.value) return
-  const rect = exerciseRef.value.getBoundingClientRect()
+  if (!canvasHostRef.value) return
+  const rect = canvasHostRef.value.getBoundingClientRect()
   const lines = []
 
   for (const [leftIdxStr, rightIdx] of Object.entries(answers.value)) {
@@ -219,14 +221,23 @@ watch(answers, (newVal) => {
 }, { deep: true })
 
 onMounted(() => {
-  window.addEventListener('resize', calculateLines)
-  window.addEventListener('scroll', calculateLines)
+  window.addEventListener('resize', calculateLines, { passive: true })
+  window.addEventListener('scroll', calculateLines, { passive: true })
+  window.visualViewport?.addEventListener('resize', calculateLines, { passive: true })
+  window.visualViewport?.addEventListener('scroll', calculateLines, { passive: true })
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => calculateLines())
+    if (canvasHostRef.value) resizeObserver.observe(canvasHostRef.value)
+  }
   triggerRedraw()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', calculateLines)
   window.removeEventListener('scroll', calculateLines)
+  window.visualViewport?.removeEventListener('resize', calculateLines)
+  window.visualViewport?.removeEventListener('scroll', calculateLines)
+  if (resizeObserver) resizeObserver.disconnect()
 })
 </script>
 

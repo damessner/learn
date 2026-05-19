@@ -5,8 +5,17 @@ const { requireAuth } = require('./auth');
 
 const router = express.Router();
 
+function ensureGuestAssignmentAccess(req, res) {
+  if (req.user.isGuest && req.user.assignmentId !== req.params.assignmentId) {
+    res.status(403).json({ error: 'Guest token is restricted to one assignment' });
+    return false;
+  }
+  return true;
+}
+
 // ─── Get my submission for an assignment ──────────────────────────────────────
 router.get('/assignment/:assignmentId', requireAuth, (req, res) => {
+  if (!ensureGuestAssignmentAccess(req, res)) return;
   const db = getDB();
   const submission = db.prepare(`
     SELECT * FROM submissions
@@ -19,6 +28,7 @@ router.get('/assignment/:assignmentId', requireAuth, (req, res) => {
 
 // ─── Save progress (auto-save, not final) ─────────────────────────────────────
 router.post('/assignment/:assignmentId/save', requireAuth, (req, res) => {
+  if (!ensureGuestAssignmentAccess(req, res)) return;
   const db = getDB();
   const { answers } = req.body;
   const { assignmentId } = req.params;
@@ -48,6 +58,7 @@ router.post('/assignment/:assignmentId/save', requireAuth, (req, res) => {
 
 // ─── Final submit ──────────────────────────────────────────────────────────────
 router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
+  if (!ensureGuestAssignmentAccess(req, res)) return;
   const db = getDB();
   const { answers } = req.body;
   const { assignmentId } = req.params;

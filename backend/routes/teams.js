@@ -8,20 +8,32 @@ const MS_TENANT_ID = process.env.MS_TENANT_ID;
 const MS_CLIENT_ID = process.env.MS_CLIENT_ID;
 const MS_CLIENT_SECRET = process.env.MS_CLIENT_SECRET;
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
+const GRAPH_TIMEOUT_MS = parseInt(process.env.GRAPH_TIMEOUT_MS || '12000', 10);
+const GRAPH_MAX_RETRIES = parseInt(process.env.GRAPH_MAX_RETRIES || '2', 10);
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = GRAPH_TIMEOUT_MS) {
+  const { default: fetch } = await import('node-fetch');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // Get an app-level access token for Graph API
 async function getAppToken() {
   if (!MS_TENANT_ID || !MS_CLIENT_ID || !MS_CLIENT_SECRET) {
     throw new Error('Microsoft Graph API not configured. Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET in .env');
   }
-  const { default: fetch } = await import('node-fetch');
   const params = new URLSearchParams({
     grant_type: 'client_credentials',
     client_id: MS_CLIENT_ID,
     client_secret: MS_CLIENT_SECRET,
     scope: 'https://graph.microsoft.com/.default'
   });
-  const resp = await fetch(`https://login.microsoftonline.com/${MS_TENANT_ID}/oauth2/v2.0/token`, {
+  const resp = await fetchWithTimeout(`https://login.microsoftonline.com/${MS_TENANT_ID}/oauth2/v2.0/token`, {
     method: 'POST',
     body: params
   });
@@ -31,20 +43,32 @@ async function getAppToken() {
 }
 
 async function graphRequest(token, method, path, body) {
-  const { default: fetch } = await import('node-fetch');
-  const resp = await fetch(`${GRAPH_BASE}${path}`, {
-    method,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Graph API ${method} ${path} failed: ${resp.status} ${err}`);
+  let lastErr;
+  for (let attempt = 0; attempt <= GRAPH_MAX_RETRIES; attempt++) {
+    try {
+      const resp = await fetchWithTimeout(`${GRAPH_BASE}${path}`, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        const retryable = resp.status === 429 || resp.status >= 500;
+        if (retryable && attempt < GRAPH_MAX_RETRIES) {
+          continue;
+        }
+        throw new Error(`Graph API ${method} ${path} failed: ${resp.status} ${errText}`);
+      }
+      return resp.status === 204 ? null : resp.json();
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= GRAPH_MAX_RETRIES) break;
+    }
   }
-  return resp.status === 204 ? null : resp.json();
+  throw lastErr;
 }
 
 // ─── Check if Teams integration is configured ─────────────────────────────────

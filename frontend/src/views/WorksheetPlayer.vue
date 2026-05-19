@@ -71,7 +71,7 @@
           />
 
           <!-- Static Text Block -->
-          <div v-else-if="block.type === 'text'" class="text-card card" v-html="renderMarkdown(block.content)"></div>
+          <div v-else-if="block.type === 'text'" class="text-card card" v-html="renderMarkdownSafe(block.content)"></div>
           
           <!-- Static Media/Audio Blocks -->
           <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
@@ -266,9 +266,18 @@ const getSingleCorrectAnswerData = (block) => {
   return blockFeedback?.correctAnswer !== undefined ? blockFeedback.correctAnswer : null
 }
 
-const renderMarkdown = (text) => {
-  // Simple paragraph & line break renderer
-  return (text || '')
+const escapeHtml = (text = '') => {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const renderMarkdownSafe = (text) => {
+  // Escape first, then allow minimal formatting markers only.
+  return escapeHtml(text || '')
     .replace(/\n/g, '<br />')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
