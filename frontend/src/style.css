@@ -1,0 +1,225 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Color Palette */
+  --primary-hue: 250; /* Indigo */
+  --secondary-hue: 185; /* Cyan */
+  
+  --primary: hsl(var(--primary-hue), 85%, 57%);
+  --primary-hover: hsl(var(--primary-hue), 85%, 50%);
+  --primary-light: hsl(var(--primary-hue), 85%, 96%);
+  
+  --secondary: hsl(var(--secondary-hue), 85%, 45%);
+  --secondary-hover: hsl(var(--secondary-hue), 85%, 40%);
+  --secondary-light: hsl(var(--secondary-hue), 85%, 96%);
+  
+  --success: hsl(142, 70%, 45%);
+  --success-light: hsl(142, 70%, 96%);
+  --warning: hsl(38, 92%, 50%);
+  --warning-light: hsl(38, 92%, 96%);
+  --danger: hsl(350, 80%, 55%);
+  --danger-light: hsl(350, 80%, 96%);
+  
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  
+  /* Layout variables */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02);
+  --shadow-premium: 0 20px 25px -5px rgba(79, 70, 229, 0.05), 0 10px 10px -5px rgba(79, 70, 229, 0.02);
+  
+  /* Fonts */
+  --font-title: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-main: #0b0f19;
+    --bg-card: #151c2c;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border-color: #1e293b;
+    --primary-light: hsl(var(--primary-hue), 30%, 15%);
+    --secondary-light: hsl(var(--secondary-hue), 30%, 15%);
+    --success-light: hsl(142, 30%, 12%);
+    --warning-light: hsl(38, 30%, 12%);
+    --danger-light: hsl(350, 30%, 12%);
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  line-height: 1.6;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-title);
+  color: var(--text-main);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--primary-hover);
+}
+
+/* UI Elements */
+button, .btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  min-height: 44px; /* iPad Touch target standard */
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), hsl(var(--primary-hue), 85%, 65%));
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.25);
+  background: linear-gradient(135deg, var(--primary-hover), hsl(var(--primary-hue), 85%, 60%));
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.btn-secondary:hover {
+  background-color: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-danger {
+  background-color: var(--danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: hsl(350, 80%, 50%);
+  box-shadow: 0 8px 16px rgba(239, 68, 68, 0.25);
+}
+
+/* Cards & Layout */
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-premium);
+}
+
+/* Glassmorphism */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  .glass {
+    background: rgba(21, 28, 44, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* Form controls */
+input[type="text"], input[type="email"], input[type="password"], select, textarea {
+  font-family: var(--font-body);
+  font-size: 16px; /* Prevents iOS auto-zoom */
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  width: 100%;
+  outline: none;
+  min-height: 46px;
+  transition: all 0.2s ease;
+}
+
+input[type="text"]:focus, select:focus, textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+/* Exercise Styles */
+.exercise-block {
+  margin-bottom: 24px;
+  border-left: 4px solid var(--primary);
+}
+
+.exercise-block.correct {
+  border-left-color: var(--success);
+}
+
+.exercise-block.incorrect {
+  border-left-color: var(--danger);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}

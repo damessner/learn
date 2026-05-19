@@ -1,0 +1,213 @@
+const express = require('express');
+const { v4: uuidv4 } = require('uuid');
+const { getDB } = require('../db/init');
+const { requireAuth, requireRole } = require('./auth');
+
+const router = express.Router();
+
+// ─── List worksheets ───────────────────────────────────────────────────────────
+router.get('/', requireAuth, (req, res) => {
+  const db = getDB();
+  const { role, userId } = req.user;
+
+  let worksheets;
+  if (role === 'student') {
+    // Students see worksheets assigned to them via active assignments
+    worksheets = db.prepare(`
+      SELECT w.id, w.title, w.description, w.subject, w.grade_level,
+             w.total_points, w.created_at,
+             a.id as assignment_id, a.due_date, a.class_name,
+             s.score, s.submitted_at
+      FROM worksheets w
+      JOIN assignments a ON a.worksheet_id = w.id
+      LEFT JOIN submissions s ON s.assignment_id = a.id AND s.user_id = ?
+      WHERE w.is_published = 1
+      ORDER BY a.due_date ASC
+    `).all(userId);
+  } else {
+    // Teachers/admins see all their worksheets
+    const filter = role === 'admin' ? '1=1' : 'w.created_by = ?';
+    const params = role === 'admin' ? [] : [userId];
+    worksheets = db.prepare(`
+      SELECT w.*, u.name as author_name
+      FROM worksheets w
+      JOIN users u ON u.id = w.created_by
+      WHERE ${filter}
+      ORDER BY w.updated_at DESC
+    `).all(...params);
+  }
+
+  res.json(worksheets);
+});
+
+// ─── Get single worksheet ──────────────────────────────────────────────────────
+router.get('/:id', requireAuth, (req, res) => {
+  const db = getDB();
+  let worksheet = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(req.params.id);
+
+  if (!worksheet) {
+    // Try to lookup worksheet via assignment ID (since students navigate by assignment ID)
+    worksheet = db.prepare(`
+      SELECT w.*
+      FROM worksheets w
+      JOIN assignments a ON a.worksheet_id = w.id
+      WHERE a.id = ?
+    `).get(req.params.id);
+  }
+
+  if (!worksheet) return res.status(404).json({ error: 'Worksheet not found' });
+
+  // Students get a version with correct answers stripped
+  if (req.user.role === 'student') {
+    const content = JSON.parse(worksheet.content);
+    content.blocks = content.blocks.map(block => {
+      const stripped = { ...block };
+      if (block.type === 'gap_fill') {
+        // Replace {answer} markers with ____ for display, keep structure
+        stripped.template_display = block.template.replace(/\{[^}]+\}/g, '____');
+        delete stripped.template; // Don't expose answers
+        delete stripped.answers;
+      }
+      if (['multiple_choice', 'single_choice'].includes(block.type)) {
+        delete stripped.correct; // Don't expose correct answers
+      }
+      if (block.type === 'matching') {
+        // Shuffle right side
+        stripped.right = [...block.pairs.map(p => p[1])].sort(() => Math.random() - 0.5);
+        stripped.left = block.pairs.map(p => p[0]);
+        delete stripped.pairs;
+      }
+      if (block.type === 'drag_drop') {
+        // Shuffle draggable items
+        stripped.items = [...block.items].sort(() => Math.random() - 0.5);
+      }
+      return stripped;
+    });
+    worksheet.content = JSON.stringify(content);
+  }
+
+  res.json({ ...worksheet, content: JSON.parse(worksheet.content) });
+});
+
+// ─── Create worksheet ──────────────────────────────────────────────────────────
+router.post('/', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  const { title, description, subject, grade_level, content } = req.body;
+
+  if (!title || !title.trim()) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  const db = getDB();
+  const id = uuidv4();
+  const contentStr = JSON.stringify(content || { blocks: [] });
+  const totalPoints = calculatePoints(content);
+
+  db.prepare(`
+    INSERT INTO worksheets (id, title, description, subject, grade_level, created_by, content, total_points)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, title.trim(), description || '', subject || '', grade_level || '', req.user.userId, contentStr, totalPoints);
+
+  const worksheet = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(id);
+  res.status(201).json({ ...worksheet, content: JSON.parse(worksheet.content) });
+});
+
+// ─── Update worksheet ──────────────────────────────────────────────────────────
+router.put('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  const db = getDB();
+  const existing = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Worksheet not found' });
+
+  // Teachers can only edit their own worksheets
+  if (req.user.role === 'teacher' && existing.created_by !== req.user.userId) {
+    return res.status(403).json({ error: 'Not your worksheet' });
+  }
+
+  const { title, description, subject, grade_level, content, is_published } = req.body;
+  const totalPoints = calculatePoints(content);
+
+  db.prepare(`
+    UPDATE worksheets SET
+      title = COALESCE(?, title),
+      description = COALESCE(?, description),
+      subject = COALESCE(?, subject),
+      grade_level = COALESCE(?, grade_level),
+      content = COALESCE(?, content),
+      total_points = ?,
+      is_published = COALESCE(?, is_published),
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).run(
+    title, description, subject, grade_level,
+    content ? JSON.stringify(content) : null,
+    totalPoints,
+    is_published !== undefined ? (is_published ? 1 : 0) : null,
+    req.params.id
+  );
+
+  const updated = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(req.params.id);
+  res.json({ ...updated, content: JSON.parse(updated.content) });
+});
+
+// ─── Delete worksheet ──────────────────────────────────────────────────────────
+router.delete('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  const db = getDB();
+  const existing = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Worksheet not found' });
+
+  if (req.user.role === 'teacher' && existing.created_by !== req.user.userId) {
+    return res.status(403).json({ error: 'Not your worksheet' });
+  }
+
+  db.prepare('DELETE FROM worksheets WHERE id = ?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ─── Assignments ───────────────────────────────────────────────────────────────
+router.get('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  const db = getDB();
+  const assignments = db.prepare(`
+    SELECT a.*, COUNT(s.id) as submission_count
+    FROM assignments a
+    LEFT JOIN submissions s ON s.assignment_id = a.id
+    WHERE a.worksheet_id = ?
+    GROUP BY a.id
+    ORDER BY a.created_at DESC
+  `).all(req.params.id);
+  res.json(assignments);
+});
+
+router.post('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  const { class_name, class_id, due_date } = req.body;
+  if (!class_name) return res.status(400).json({ error: 'class_name required' });
+
+  const db = getDB();
+  const id = uuidv4();
+  db.prepare(`
+    INSERT INTO assignments (id, worksheet_id, class_name, class_id, due_date, created_by)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, req.params.id, class_name, class_id || null, due_date || null, req.user.userId);
+
+  const assignment = db.prepare('SELECT * FROM assignments WHERE id = ?').get(id);
+  res.status(201).json(assignment);
+});
+
+// ─── Assignment results (teacher view) ────────────────────────────────────────
+router.get('/assignments/:assignmentId/results', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  const db = getDB();
+  const results = db.prepare(`
+    SELECT s.*, u.name as student_name, u.email as student_email
+    FROM submissions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.assignment_id = ?
+    ORDER BY u.name
+  `).all(req.params.assignmentId);
+  res.json(results.map(r => ({ ...r, answers: JSON.parse(r.answers) })));
+});
+
+// ─── Helper: calculate total points from content ───────────────────────────────
+function calculatePoints(content) {
+  if (!content || !content.blocks) return 0;
+  return content.blocks.reduce((sum, block) => sum + (block.points || 0), 0);
+}
+
+module.exports = router;
