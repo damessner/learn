@@ -77,7 +77,11 @@ async function verifyMicrosoftIdToken(idToken) {
   }
   
   // Wrap raw certificate payload into standard 64-char block lines
-  const certLines = matchingKey.x5c[0].match(/.{1,64}/g);
+  const certPayload = matchingKey.x5c[0].replace(/\s+/g, '');
+  if (!certPayload) {
+    throw new Error('JWK certificate is empty or malformed');
+  }
+  const certLines = certPayload.match(/.{1,64}/g);
   if (!certLines || certLines.length === 0) {
     throw new Error('JWK certificate is empty or malformed');
   }

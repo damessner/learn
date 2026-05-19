@@ -6,8 +6,8 @@ const { getDB } = require('../db/init');
 const { verifyMicrosoftIdToken } = require('../services/microsoftAuth');
 
 const router = express.Router();
-const DEFAULT_DEV_JWT_SECRET_DO_NOT_USE_IN_PROD = 'dev-secret-change-in-production-long-secret-key-64-chars-minimum';
-const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_DEV_JWT_SECRET_DO_NOT_USE_IN_PROD;
+const DEV_JWT_SECRET_PLACEHOLDER = 'dev-secret-change-in-production-long-secret-key-64-chars-minimum';
+const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET_PLACEHOLDER;
 const JWT_EXPIRES = '24h';
 const ALLOW_INSECURE_MS_LOGIN = process.env.ALLOW_INSECURE_MS_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
 const DEV_MS_LOGIN_SECRET = process.env.DEV_MS_LOGIN_SECRET;
@@ -16,9 +16,9 @@ if (process.env.NODE_ENV === 'production') {
   if (
     !process.env.JWT_SECRET ||
     process.env.JWT_SECRET.length < 32 ||
-    process.env.JWT_SECRET === DEFAULT_DEV_JWT_SECRET_DO_NOT_USE_IN_PROD
+    process.env.JWT_SECRET === DEV_JWT_SECRET_PLACEHOLDER
   ) {
-    throw new Error('FATAL: JWT_SECRET environment variable is required and must be at least 32 characters long in production mode.');
+    throw new Error('FATAL: JWT_SECRET is required in production, must be at least 32 characters, and cannot use the development placeholder value.');
   }
 }
 
