@@ -4,7 +4,16 @@ const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const { verifyMicrosoftIdToken } = require('../services/microsoftAuth');
+
+// Enforce strong JWT secrets in production environment
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    throw new Error('FATAL: JWT_SECRET environment variable is required and must be at least 32 characters long in production mode.');
+  }
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production-long-secret-key-64-chars-minimum';
 const JWT_EXPIRES = '24h';
 
 // ─── Microsoft OAuth2 callback ───────────────────────────────────────────────
@@ -12,11 +21,15 @@ const JWT_EXPIRES = '24h';
 // We verify it and create/update the user in our DB.
 router.post('/microsoft', async (req, res) => {
   try {
-    const { idToken, accessToken, name, email, msId } = req.body;
+    const { idToken } = req.body;
 
-    if (!msId || !name) {
-      return res.status(400).json({ error: 'Missing required fields from Microsoft token' });
+    if (!idToken) {
+      return res.status(400).json({ error: 'Missing idToken parameter' });
     }
+
+    // Securely verify token with Microsoft's public JWK keys
+    const msProfile = await verifyMicrosoftIdToken(idToken);
+    const { msId, name, email } = msProfile;
 
     const db = getDB();
 
@@ -49,7 +62,7 @@ router.post('/microsoft', async (req, res) => {
     });
   } catch (err) {
     console.error('[AUTH] Microsoft login error:', err);
-    res.status(500).json({ error: 'Authentication failed' });
+    res.status(401).json({ error: `Authentication failed: ${err.message}` });
   }
 });
 
