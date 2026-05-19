@@ -10,6 +10,7 @@ const MS_CLIENT_SECRET = process.env.MS_CLIENT_SECRET;
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 const GRAPH_TIMEOUT_MS = parseInt(process.env.GRAPH_TIMEOUT_MS || '12000', 10);
 const GRAPH_MAX_RETRIES = parseInt(process.env.GRAPH_MAX_RETRIES || '2', 10);
+const GRAPH_MAX_BACKOFF_MS = parseInt(process.env.GRAPH_MAX_BACKOFF_MS || '5000', 10);
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = GRAPH_TIMEOUT_MS) {
   const { default: fetch } = await import('node-fetch');
@@ -20,6 +21,11 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = GRAPH_TIMEOUT_MS)
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function waitForRetryDelay(attempt) {
+  const delayMs = Math.min(Math.pow(2, attempt) * 1000, GRAPH_MAX_BACKOFF_MS);
+  await new Promise(resolve => setTimeout(resolve, delayMs));
 }
 
 // Get an app-level access token for Graph API
@@ -58,7 +64,7 @@ async function graphRequest(token, method, path, body) {
         const errText = await resp.text();
         const retryable = resp.status === 429 || resp.status >= 500;
         if (retryable && attempt < GRAPH_MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+          await waitForRetryDelay(attempt);
           continue;
         }
         throw new Error(`Graph API ${method} ${path} failed: ${resp.status} ${errText}`);
@@ -67,7 +73,7 @@ async function graphRequest(token, method, path, body) {
     } catch (err) {
       lastErr = err;
       if (attempt < GRAPH_MAX_RETRIES) {
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+        await waitForRetryDelay(attempt);
       }
       if (attempt >= GRAPH_MAX_RETRIES) break;
     }

@@ -59,6 +59,13 @@ function certToPem(cert) {
   return `-----BEGIN CERTIFICATE-----\n${lines.join('\n')}\n-----END CERTIFICATE-----`;
 }
 
+function safeSecretEquals(expected, provided) {
+  const expectedBuf = Buffer.from(expected || '', 'utf8');
+  const providedBuf = Buffer.from(provided || '', 'utf8');
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, providedBuf);
+}
+
 async function verifyMicrosoftIdToken(idToken) {
   if (!idToken) throw new Error('Missing Microsoft idToken');
   if (!MS_CLIENT_ID || !MS_TENANT_ID) throw new Error('Microsoft login is not configured');
@@ -106,7 +113,7 @@ router.post('/microsoft', async (req, res) => {
     if (idToken) {
       profile = await verifyMicrosoftIdToken(idToken);
     } else if (ALLOW_INSECURE_MS_LOGIN) {
-      if (DEV_MS_LOGIN_SECRET && devSecret !== DEV_MS_LOGIN_SECRET) {
+      if (DEV_MS_LOGIN_SECRET && !safeSecretEquals(DEV_MS_LOGIN_SECRET, devSecret)) {
         return res.status(401).json({ error: 'Invalid development login secret' });
       }
       if (!fallbackName || fallbackName.trim().length < 2) {
@@ -114,7 +121,8 @@ router.post('/microsoft', async (req, res) => {
       }
       const safeName = fallbackName.trim();
       const safeEmail = (fallbackEmail || '').trim();
-      const devMsId = `dev_${crypto.createHash('sha256').update(`${safeName.toLowerCase()}:${safeEmail.toLowerCase()}`).digest('hex').slice(0, 24)}`;
+      const devIdentitySeed = JSON.stringify([safeName.toLowerCase(), safeEmail.toLowerCase()]);
+      const devMsId = `dev_${crypto.createHash('sha256').update(devIdentitySeed).digest('hex').slice(0, 24)}`;
       profile = { msId: devMsId, name: safeName, email: safeEmail };
     } else {
       return res.status(400).json({ error: 'Microsoft idToken is required' });
