@@ -54,11 +54,15 @@ router.get('/', requireAuth, (req, res) => {
 
 // ─── Get single worksheet ──────────────────────────────────────────────────────
 router.get('/:id', requireAuth, (req, res) => {
-  if (req.user.isGuest && req.params.id !== req.user.assignmentId) {
-    return res.status(403).json({ error: 'Guest token is restricted to one assignment' });
+  const db = getDB();
+  if (req.user.isGuest) {
+    const assignment = db.prepare('SELECT id, worksheet_id FROM assignments WHERE id = ?').get(req.user.assignmentId);
+    if (!assignment) return res.status(403).json({ error: 'Guest assignment not found' });
+    if (String(req.params.id) !== String(assignment.id) && String(req.params.id) !== String(assignment.worksheet_id)) {
+      return res.status(403).json({ error: 'Guest token is restricted to one assignment' });
+    }
   }
 
-  const db = getDB();
   let worksheet = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(req.params.id);
 
   if (!worksheet) {

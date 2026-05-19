@@ -11,6 +11,7 @@ const JWT_EXPIRES = '24h';
 const MS_TENANT_ID = process.env.MS_TENANT_ID;
 const MS_CLIENT_ID = process.env.MS_CLIENT_ID;
 const ALLOW_INSECURE_MS_LOGIN = process.env.ALLOW_INSECURE_MS_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
+const DEV_MS_LOGIN_SECRET = process.env.DEV_MS_LOGIN_SECRET;
 
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === DEFAULT_DEV_SECRET) {
   throw new Error('JWT_SECRET must be set in production.');
@@ -99,13 +100,22 @@ async function verifyMicrosoftIdToken(idToken) {
 // We verify it and create/update the user in our DB.
 router.post('/microsoft', async (req, res) => {
   try {
-    const { idToken, name: fallbackName, email: fallbackEmail, msId: fallbackMsId } = req.body;
+    const { idToken, name: fallbackName, email: fallbackEmail, devSecret } = req.body;
     let profile;
 
     if (idToken) {
       profile = await verifyMicrosoftIdToken(idToken);
     } else if (ALLOW_INSECURE_MS_LOGIN) {
-      profile = { msId: fallbackMsId, name: fallbackName, email: fallbackEmail };
+      if (DEV_MS_LOGIN_SECRET && devSecret !== DEV_MS_LOGIN_SECRET) {
+        return res.status(401).json({ error: 'Invalid development login secret' });
+      }
+      if (!fallbackName || fallbackName.trim().length < 2) {
+        return res.status(400).json({ error: 'Name is required for development Microsoft login' });
+      }
+      const safeName = fallbackName.trim();
+      const safeEmail = (fallbackEmail || '').trim();
+      const devMsId = `dev_${crypto.createHash('sha256').update(`${safeName.toLowerCase()}:${safeEmail.toLowerCase()}`).digest('hex').slice(0, 24)}`;
+      profile = { msId: devMsId, name: safeName, email: safeEmail };
     } else {
       return res.status(400).json({ error: 'Microsoft idToken is required' });
     }
@@ -147,7 +157,12 @@ router.post('/microsoft', async (req, res) => {
     });
   } catch (err) {
     console.error('[AUTH] Microsoft login error:', err);
-    res.status(500).json({ error: 'Authentication failed' });
+    const isAuthFailure = /token|tenant|signing|microsoft|idtoken|malformed|unsupported|expired|configured/i.test(err.message || '');
+    res.status(isAuthFailure ? 401 : 500).json({
+      error: isAuthFailure
+        ? 'Microsoft authentication failed. Please sign in again or contact support.'
+        : 'Authentication service error. Please try again later.'
+    });
   }
 });
 

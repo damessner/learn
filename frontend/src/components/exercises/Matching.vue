@@ -104,6 +104,7 @@ const exerciseRef = ref(null)
 const canvasHostRef = ref(null)
 const drawnLines = ref([])
 let resizeObserver = null
+let redrawRaf = null
 
 const isGraded = computed(() => !!props.feedback)
 
@@ -186,9 +187,17 @@ const calculateLines = () => {
   drawnLines.value = lines
 }
 
+const scheduleCalculateLines = () => {
+  if (redrawRaf) return
+  redrawRaf = requestAnimationFrame(() => {
+    redrawRaf = null
+    calculateLines()
+  })
+}
+
 const triggerRedraw = () => {
   nextTick(() => {
-    calculateLines()
+    scheduleCalculateLines()
   })
 }
 
@@ -221,23 +230,24 @@ watch(answers, (newVal) => {
 }, { deep: true })
 
 onMounted(() => {
-  window.addEventListener('resize', calculateLines, { passive: true })
-  window.addEventListener('scroll', calculateLines, { passive: true })
-  window.visualViewport?.addEventListener('resize', calculateLines, { passive: true })
-  window.visualViewport?.addEventListener('scroll', calculateLines, { passive: true })
+  window.addEventListener('resize', scheduleCalculateLines, { passive: true })
+  window.addEventListener('scroll', scheduleCalculateLines, { passive: true })
+  window.visualViewport?.addEventListener('resize', scheduleCalculateLines, { passive: true })
+  window.visualViewport?.addEventListener('scroll', scheduleCalculateLines, { passive: true })
   if (typeof ResizeObserver !== 'undefined') {
-    resizeObserver = new ResizeObserver(() => calculateLines())
+    resizeObserver = new ResizeObserver(() => scheduleCalculateLines())
     if (canvasHostRef.value) resizeObserver.observe(canvasHostRef.value)
   }
   triggerRedraw()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', calculateLines)
-  window.removeEventListener('scroll', calculateLines)
-  window.visualViewport?.removeEventListener('resize', calculateLines)
-  window.visualViewport?.removeEventListener('scroll', calculateLines)
+  window.removeEventListener('resize', scheduleCalculateLines)
+  window.removeEventListener('scroll', scheduleCalculateLines)
+  window.visualViewport?.removeEventListener('resize', scheduleCalculateLines)
+  window.visualViewport?.removeEventListener('scroll', scheduleCalculateLines)
   if (resizeObserver) resizeObserver.disconnect()
+  if (redrawRaf) cancelAnimationFrame(redrawRaf)
 })
 </script>
 

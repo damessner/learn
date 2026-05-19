@@ -6,7 +6,7 @@ const { requireAuth } = require('./auth');
 const router = express.Router();
 
 function ensureGuestAssignmentAccess(req, res) {
-  if (req.user.isGuest && req.user.assignmentId !== req.params.assignmentId) {
+  if (req.user.isGuest && String(req.user.assignmentId) !== String(req.params.assignmentId)) {
     res.status(403).json({ error: 'Guest token is restricted to one assignment' });
     return false;
   }

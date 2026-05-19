@@ -58,6 +58,7 @@ async function graphRequest(token, method, path, body) {
         const errText = await resp.text();
         const retryable = resp.status === 429 || resp.status >= 500;
         if (retryable && attempt < GRAPH_MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
           continue;
         }
         throw new Error(`Graph API ${method} ${path} failed: ${resp.status} ${errText}`);
@@ -65,6 +66,9 @@ async function graphRequest(token, method, path, body) {
       return resp.status === 204 ? null : resp.json();
     } catch (err) {
       lastErr = err;
+      if (attempt < GRAPH_MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      }
       if (attempt >= GRAPH_MAX_RETRIES) break;
     }
   }
