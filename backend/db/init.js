@@ -12,6 +12,8 @@ function getDB() {
     if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = NORMAL');
+    db.pragma('busy_timeout = 5000');
     db.pragma('foreign_keys = ON');
   }
   return db;
@@ -84,6 +86,10 @@ async function initDB() {
       url TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE INDEX IF NOT EXISTS idx_assignments_worksheet_id ON assignments(worksheet_id);
+    CREATE INDEX IF NOT EXISTS idx_assignments_class_id ON assignments(class_id);
+    CREATE INDEX IF NOT EXISTS idx_submissions_assignment_submitted_at ON submissions(assignment_id, submitted_at);
   `);
 
   // Seed a default admin/teacher if none exists

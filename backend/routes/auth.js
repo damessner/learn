@@ -1,35 +1,61 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
-
-const router = express.Router();
 const { verifyMicrosoftIdToken } = require('../services/microsoftAuth');
 
-// Enforce strong JWT secrets in production environment
+const router = express.Router();
+const DEV_JWT_SECRET_PLACEHOLDER = 'dev-secret-change-in-production-long-secret-key-64-chars-minimum';
+const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET_PLACEHOLDER;
+const JWT_EXPIRES = '24h';
+const ALLOW_INSECURE_MS_LOGIN = process.env.ALLOW_INSECURE_MS_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
+const DEV_MS_LOGIN_SECRET = process.env.DEV_MS_LOGIN_SECRET;
+
 if (process.env.NODE_ENV === 'production') {
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    throw new Error('FATAL: JWT_SECRET environment variable is required and must be at least 32 characters long in production mode.');
+  if (
+    !process.env.JWT_SECRET ||
+    process.env.JWT_SECRET.length < 32 ||
+    process.env.JWT_SECRET === DEV_JWT_SECRET_PLACEHOLDER
+  ) {
+    throw new Error('FATAL: JWT_SECRET is required in production, must be at least 32 characters, and cannot use the development placeholder value.');
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production-long-secret-key-64-chars-minimum';
-const JWT_EXPIRES = '24h';
+function safeSecretEquals(expected, provided) {
+  const expectedBuf = Buffer.from(expected || '', 'utf8');
+  const providedBuf = Buffer.from(provided || '', 'utf8');
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, providedBuf);
+}
 
 // ─── Microsoft OAuth2 callback ───────────────────────────────────────────────
 // After MSAL client-side auth, the frontend sends us the id_token.
 // We verify it and create/update the user in our DB.
 router.post('/microsoft', async (req, res) => {
   try {
-    const { idToken } = req.body;
+    const { idToken, name: fallbackName, email: fallbackEmail, devSecret } = req.body;
+    let profile;
 
-    if (!idToken) {
-      return res.status(400).json({ error: 'Missing idToken parameter' });
+    if (idToken) {
+      profile = await verifyMicrosoftIdToken(idToken);
+    } else if (ALLOW_INSECURE_MS_LOGIN) {
+      if (DEV_MS_LOGIN_SECRET && !safeSecretEquals(DEV_MS_LOGIN_SECRET, devSecret)) {
+        return res.status(401).json({ error: 'Invalid development login secret' });
+      }
+      if (!fallbackName || fallbackName.trim().length < 2) {
+        return res.status(400).json({ error: 'Name is required for development Microsoft login' });
+      }
+      const safeName = fallbackName.trim();
+      const safeEmail = (fallbackEmail || '').trim();
+      const devIdentitySeed = JSON.stringify([safeName.toLowerCase(), safeEmail.toLowerCase()]);
+      const devMsId = `dev_${crypto.createHash('sha256').update(devIdentitySeed).digest('hex').slice(0, 24)}`;
+      profile = { msId: devMsId, name: safeName, email: safeEmail };
+    } else {
+      return res.status(400).json({ error: 'Microsoft idToken is required' });
     }
 
-    // Securely verify token with Microsoft's public JWK keys
-    const msProfile = await verifyMicrosoftIdToken(idToken);
-    const { msId, name, email } = msProfile;
+    const { name, email, msId } = profile;
 
     const db = getDB();
 
@@ -62,7 +88,12 @@ router.post('/microsoft', async (req, res) => {
     });
   } catch (err) {
     console.error('[AUTH] Microsoft login error:', err);
-    res.status(401).json({ error: `Authentication failed: ${err.message}` });
+    const isAuthFailure = /token|tenant|signing|microsoft|idtoken|malformed|unsupported|expired|configured/i.test(err.message || '');
+    res.status(isAuthFailure ? 401 : 500).json({
+      error: isAuthFailure
+        ? 'Microsoft authentication failed. Please sign in again or contact support.'
+        : 'Authentication service error. Please try again later.'
+    });
   }
 });
 

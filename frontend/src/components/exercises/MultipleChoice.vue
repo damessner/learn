@@ -5,7 +5,7 @@
       <span class="points">{{ points }} pts</span>
     </div>
 
-    <div class="instruction" v-html="instruction"></div>
+    <div class="instruction">{{ instruction }}</div>
 
     <div class="options-container">
       <label 

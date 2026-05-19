@@ -71,7 +71,7 @@
           />
 
           <!-- Static Text Block -->
-          <div v-else-if="block.type === 'text'" class="text-card card" v-html="renderMarkdown(block.content)"></div>
+          <div v-else-if="block.type === 'text'" class="text-card card">{{ block.content || '' }}</div>
           
           <!-- Static Media/Audio Blocks -->
           <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
@@ -266,13 +266,6 @@ const getSingleCorrectAnswerData = (block) => {
   return blockFeedback?.correctAnswer !== undefined ? blockFeedback.correctAnswer : null
 }
 
-const renderMarkdown = (text) => {
-  // Simple paragraph & line break renderer
-  return (text || '')
-    .replace(/\n/g, '<br />')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-}
 </script>
 
 <style scoped>
@@ -354,6 +347,7 @@ const renderMarkdown = (text) => {
 .text-card {
   padding: 24px;
   font-size: 16px;
+  white-space: pre-wrap;
 }
 
 /* Graded Results Overview Header */

@@ -72,9 +72,20 @@ async function verifyMicrosoftIdToken(idToken) {
   if (!matchingKey.x5c || !matchingKey.x5c.length) {
     throw new Error('JWK is missing the certificate chain (x5c)');
   }
+  if (!matchingKey.x5c[0] || !matchingKey.x5c[0].trim()) {
+    throw new Error('JWK certificate is empty or malformed');
+  }
   
   // Wrap raw certificate payload into standard 64-char block lines
-  const cert = `-----BEGIN CERTIFICATE-----\n${matchingKey.x5c[0].match(/.{1,64}/g).join('\n')}\n-----END CERTIFICATE-----\n`;
+  const certPayload = matchingKey.x5c[0].replace(/\s+/g, '');
+  if (!certPayload) {
+    throw new Error('JWK certificate is empty or malformed');
+  }
+  const certLines = certPayload.match(/.{1,64}/g);
+  if (!certLines || certLines.length === 0) {
+    throw new Error('JWK certificate is empty or malformed');
+  }
+  const cert = `-----BEGIN CERTIFICATE-----\n${certLines.join('\n')}\n-----END CERTIFICATE-----\n`;
 
   // 4. Verify signature, audience, and issuer
   const tenantId = process.env.MS_TENANT_ID || 'common';
@@ -103,8 +114,8 @@ async function verifyMicrosoftIdToken(idToken) {
 
   // Extract core profile fields
   return {
-    msId: payload.sub || payload.oid,
-    name: payload.name || 'Microsoft User',
+    msId: payload.oid || payload.sub,
+    name: payload.name || payload.preferred_username || 'Microsoft User',
     email: payload.preferred_username || payload.email || ''
   };
 }

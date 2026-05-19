@@ -5,9 +5,9 @@
       <span class="points">{{ points }} pts</span>
     </div>
 
-    <div class="instruction" v-html="instruction"></div>
+    <div class="instruction">{{ instruction }}</div>
 
-    <div class="matching-container">
+    <div class="matching-container" ref="canvasHostRef">
       <!-- SVG Canvas for Lines -->
       <svg class="connections-canvas">
         <line 
@@ -101,7 +101,10 @@ const selectedRight = ref(null)
 const leftRefs = ref([])
 const rightRefs = ref([])
 const exerciseRef = ref(null)
+const canvasHostRef = ref(null)
 const drawnLines = ref([])
+let resizeObserver = null
+let redrawRaf = null
 
 const isGraded = computed(() => !!props.feedback)
 
@@ -154,8 +157,8 @@ const checkAndMatch = () => {
 
 // Draw connection lines on SVG
 const calculateLines = () => {
-  if (!exerciseRef.value) return
-  const rect = exerciseRef.value.getBoundingClientRect()
+  if (!canvasHostRef.value) return
+  const rect = canvasHostRef.value.getBoundingClientRect()
   const lines = []
 
   for (const [leftIdxStr, rightIdx] of Object.entries(answers.value)) {
@@ -184,9 +187,17 @@ const calculateLines = () => {
   drawnLines.value = lines
 }
 
+const scheduleCalculateLines = () => {
+  if (redrawRaf) return
+  redrawRaf = requestAnimationFrame(() => {
+    redrawRaf = null
+    calculateLines()
+  })
+}
+
 const triggerRedraw = () => {
   nextTick(() => {
-    calculateLines()
+    scheduleCalculateLines()
   })
 }
 
@@ -219,14 +230,24 @@ watch(answers, (newVal) => {
 }, { deep: true })
 
 onMounted(() => {
-  window.addEventListener('resize', calculateLines)
-  window.addEventListener('scroll', calculateLines)
+  window.addEventListener('resize', scheduleCalculateLines, { passive: true })
+  window.addEventListener('scroll', scheduleCalculateLines, { passive: true })
+  window.visualViewport?.addEventListener('resize', scheduleCalculateLines, { passive: true })
+  window.visualViewport?.addEventListener('scroll', scheduleCalculateLines, { passive: true })
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => scheduleCalculateLines())
+    if (canvasHostRef.value) resizeObserver.observe(canvasHostRef.value)
+  }
   triggerRedraw()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', calculateLines)
-  window.removeEventListener('scroll', calculateLines)
+  window.removeEventListener('resize', scheduleCalculateLines)
+  window.removeEventListener('scroll', scheduleCalculateLines)
+  window.visualViewport?.removeEventListener('resize', scheduleCalculateLines)
+  window.visualViewport?.removeEventListener('scroll', scheduleCalculateLines)
+  if (resizeObserver) resizeObserver.disconnect()
+  if (redrawRaf) cancelAnimationFrame(redrawRaf)
 })
 </script>
 
