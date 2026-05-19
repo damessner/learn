@@ -34,6 +34,30 @@
           </div>
         </div>
 
+        <div class="ai-section">
+          <h3>AI Worksheet Draft</h3>
+          <div class="form-group">
+            <label>Provider</label>
+            <select v-model="aiProvider">
+              <option value="gemini">Gemini API</option>
+              <option value="ollama">Ollama (local)</option>
+              <option value="auto">Auto (Gemini fallback to Ollama)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Prompt</label>
+            <textarea
+              v-model="aiPrompt"
+              rows="4"
+              placeholder="Example: Create a short A2 English worksheet about present perfect with one text block, 2 gap fills, 1 multiple-choice, and 1 matching."
+            ></textarea>
+          </div>
+          <button @click="generateWorksheetWithAI" :disabled="aiLoading" class="btn btn-secondary">
+            {{ aiLoading ? 'Generating…' : 'Generate Worksheet with AI' }}
+          </button>
+          <span class="field-hint">Imports title/description/subject/grade and blocks from AI JSON.</span>
+        </div>
+
         <div class="add-blocks-section">
           <h3>Add Question / Content</h3>
           <div class="block-buttons-grid">
@@ -214,6 +238,9 @@ const router = useRouter()
 const route = useRoute()
 const isEditing = ref(false)
 const saving = ref(false)
+const aiLoading = ref(false)
+const aiProvider = ref('gemini')
+const aiPrompt = ref('')
 
 const sheet = ref({
   title: '',
@@ -382,6 +409,41 @@ const removePair = (block, idx) => {
   block.pairs.splice(idx, 1)
 }
 
+const generateWorksheetWithAI = async () => {
+  if (!aiPrompt.value.trim()) {
+    alert('Please enter a prompt first.')
+    return
+  }
+
+  aiLoading.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const resp = await fetch(`${API_BASE}/worksheets/ai/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        provider: aiProvider.value,
+        prompt: aiPrompt.value
+      })
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data?.error || 'AI generation failed')
+
+    sheet.value.title = data.title || sheet.value.title
+    sheet.value.description = data.description || sheet.value.description
+    sheet.value.subject = data.subject || sheet.value.subject
+    sheet.value.grade_level = data.grade_level || sheet.value.grade_level
+    sheet.value.blocks = Array.isArray(data.content?.blocks) ? data.content.blocks : []
+  } catch (err) {
+    alert(err.message)
+  } finally {
+    aiLoading.value = false
+  }
+}
+
 // Save worksheet to SQLite backend
 const saveWorksheet = async (publish = false) => {
   if (!sheet.value.title.trim()) {
@@ -506,6 +568,21 @@ const saveWorksheet = async (publish = false) => {
   font-size: 15px;
   margin-bottom: 12px;
   color: var(--text-muted);
+}
+
+.ai-section {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-section h3 {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin: 0;
 }
 
 .block-buttons-grid {

@@ -2,8 +2,30 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
 const { requireAuth, requireRole } = require('./auth');
+const { generateWorksheetFromAI } = require('../services/aiWorksheet');
 
 const router = express.Router();
+
+// ─── AI Worksheet Generation ────────────────────────────────────────────────────
+router.post('/ai/generate', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
+  try {
+    const { provider, prompt } = req.body || {};
+    if (!prompt || String(prompt).trim().length < 8) {
+      return res.status(400).json({ error: 'Prompt must be at least 8 characters' });
+    }
+
+    const worksheet = await generateWorksheetFromAI({
+      provider: provider || 'gemini',
+      prompt: String(prompt).trim()
+    });
+
+    res.json(worksheet);
+  } catch (err) {
+    const msg = err?.message || 'AI generation failed';
+    const status = /required|unsupported|invalid|configured|Prompt/i.test(msg) ? 400 : 502;
+    res.status(status).json({ error: msg });
+  }
+});
 
 // ─── List worksheets ───────────────────────────────────────────────────────────
 router.get('/', requireAuth, (req, res) => {
