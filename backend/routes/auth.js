@@ -419,9 +419,21 @@ router.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
   }
   try {
     const db = getDB();
-    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+    // Check if user has worksheets created_by them
+    const hasWorksheets = db.prepare('SELECT COUNT(*) as cnt FROM worksheets WHERE created_by = ?').get(req.params.id);
+    if (hasWorksheets && hasWorksheets.cnt > 0) {
+      return res.status(409).json({ error: `Cannot delete user: they have ${hasWorksheets.cnt} worksheets. Reassign or delete their worksheets first.` });
+    }
+    db.transaction(() => {
+      db.prepare('DELETE FROM class_students WHERE student_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM submissions WHERE user_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+    })();
     res.json({ success: true });
   } catch (err) {
+    if (err.message && err.message.includes('FOREIGN KEY')) {
+      return res.status(409).json({ error: 'Cannot delete user due to related data. Please remove their worksheets or assignments first.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -453,6 +465,30 @@ router.post('/settings', requireAuth, requireRole('admin'), (req, res) => {
       }
     });
     transaction(updates);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Change Password (authenticated user changes own password) ────────────────
+router.post('/change-password', requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  }
+  try {
+    const db = getDB();
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!verifyPassword(currentPassword, user.password_hash)) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+    const newHash = hashPassword(newPassword);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.userId);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

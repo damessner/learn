@@ -1,32 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDB } = require('../db/init');
-const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_do_not_use_in_prod';
-
-// Middleware for authentication
-function requireAuth(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-  try {
-    req.user = jwt.verify(header.slice(7), JWT_SECRET);
-    next();
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
-  }
-}
-
-function requireRole(...roles) {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
-    }
-    next();
-  };
-}
+const { requireAuth, requireRole } = require('./auth');
 
 // ─── TEACHER: Get all courses created by the teacher ───
 router.get('/', requireAuth, requireRole('teacher', 'admin'), (req, res) => {

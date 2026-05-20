@@ -172,6 +172,40 @@ async function initDB() {
   } catch (e) {
     // Column already exists
   }
+  try {
+    database.exec("ALTER TABLE worksheets ADD COLUMN tags TEXT DEFAULT '';");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("ALTER TABLE submissions ADD COLUMN feedback_text TEXT;");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id TEXT PRIMARY KEY,
+        class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+        created_by TEXT REFERENCES users(id),
+        message TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        expires_at TEXT
+      );
+    `);
+  } catch (e) {
+    // Table already exists
+  }
+  try {
+    database.exec("ALTER TABLE classes ADD COLUMN class_code TEXT;");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_code ON classes(class_code) WHERE class_code IS NOT NULL;");
+  } catch (e) {
+    // Index already exists
+  }
 
   // Seed default settings
   database.prepare(`

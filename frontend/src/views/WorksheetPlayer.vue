@@ -22,6 +22,7 @@
         </div>
         <div class="progress-stats">
           <div class="points-badge">{{ worksheet.total_points }} Points Max</div>
+          <button class="btn btn-secondary no-print" @click="printWorksheet">🖨 Print</button>
           <button 
             v-if="!isSubmitted" 
             @click="submitWorksheet" 
@@ -48,10 +49,15 @@
           <div class="progress-fill" :style="{ width: `${feedbackSummary.percentage}%` }"></div>
         </div>
         <p class="review-note">You can review your correct and incorrect answers below.</p>
+        <div class="review-toggle no-print">
+          <button @click="showReview = !showReview" class="btn btn-secondary">
+            {{ showReview ? 'Hide Review' : 'Review Answers' }}
+          </button>
+        </div>
       </div>
 
       <!-- Worksheet Content -->
-      <div class="worksheet-body">
+      <div v-show="!isSubmitted || showReview" class="worksheet-body">
         <div 
           v-for="(block, idx) in worksheet.content.blocks" 
           :key="block.id || idx"
@@ -105,9 +111,12 @@ const submitting = ref(false)
 
 const isSubmitted = ref(false)
 const feedbackSummary = ref(null)
+const showReview = ref(false)
 
 const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 let autosaveTimer = null
+
+const printWorksheet = () => window.print()
 
 const fetchWorksheet = async () => {
   loading.value = true

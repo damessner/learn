@@ -39,23 +39,38 @@
           <button @click="switchTab('templates')" class="btn btn-secondary">Browse Templates Library 📚</button>
         </div>
       </div>
-      <div v-else class="table-container card">
+      <div v-else>
+        <!-- Search & Filter Bar -->
+        <div class="ws-filter-bar card" style="margin-bottom: 16px; padding: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+          <input type="text" v-model="worksheetSearch" placeholder="Search worksheets..." style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);" />
+          <select v-model="worksheetStatusFilter" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+            <option value="">All Status</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+          </select>
+          <input type="text" v-model="worksheetTagFilter" placeholder="Filter by tag..." style="width: 140px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);" />
+        </div>
+        <div class="table-container card">
         <table class="data-table">
           <thead>
             <tr>
               <th>Title</th>
               <th>Subject</th>
               <th>Level</th>
+              <th>Tags</th>
               <th>Total Points</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="sheet in worksheets" :key="sheet.id">
+            <tr v-for="sheet in filteredWorksheets" :key="sheet.id">
               <td class="font-bold">{{ sheet.title }}</td>
               <td>{{ sheet.subject || 'General' }}</td>
               <td>{{ sheet.grade_level || 'All' }}</td>
+              <td>
+                <span v-if="sheet.tags" v-for="tag in sheet.tags.split(',').filter(t => t.trim())" :key="tag" class="tag-badge">{{ tag.trim() }}</span>
+              </td>
               <td>{{ sheet.total_points }} pts</td>
               <td>
                 <span :class="['badge', sheet.is_published ? 'badge-success' : 'badge-warning']">
@@ -73,6 +88,9 @@
                   <router-link :to="`/teacher/builder/${sheet.id}`" class="btn-icon" title="Edit Worksheet">
                     <span>✏️</span>
                   </router-link>
+                  <button @click="duplicateWorksheet(sheet.id)" class="btn-icon" title="Duplicate Worksheet">
+                    <span>📋</span>
+                  </button>
                   <button @click="deleteWorksheet(sheet.id)" class="btn-icon btn-icon-danger" title="Delete">
                     <span>🗑️</span>
                   </button>
@@ -81,6 +99,7 @@
             </tr>
           </tbody>
         </table>
+      </div>
       </div>
     </div>
     <!-- Courses Tab (New) -->
@@ -211,6 +230,12 @@
               <button @click="viewResults(assignment.id)" class="btn btn-secondary btn-sm">
                 View Results 📊
               </button>
+              <button @click="fetchAssignmentStats(assignment.id)" class="btn btn-secondary btn-sm">
+                Stats 📈
+              </button>
+              <button @click="deleteAssignmentItem(assignment.id, assignment.worksheet_id)" class="btn btn-secondary btn-sm" style="background: var(--danger-light); color: var(--danger);">
+                🗑️ Delete
+              </button>
               <button 
                 v-if="assignment.teams_assignment_id" 
                 @click="syncGrades(assignment.id)" 
@@ -262,6 +287,10 @@
             </div>
             <div class="class-card-body">
               <p class="pupils-count">👥 <strong>{{ cls.student_count || 0 }}</strong> pupils enrolled</p>
+              <div class="class-code-row" style="margin: 8px 0; display: flex; align-items: center; gap: 8px;">
+                <code style="font-size: 11px; background: var(--primary-light); color: var(--primary); padding: 2px 6px; border-radius: 4px;">{{ cls.id.slice(0, 8) }}...</code>
+                <button @click.stop="copyClassCode(cls.id)" class="btn-sm" style="font-size: 11px; padding: 2px 8px; background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary); border-radius: 4px; cursor: pointer; min-height: auto; box-shadow: none;">Copy Code</button>
+              </div>
               <span class="text-link">View Progress Matrix & Roster →</span>
             </div>
           </div>
@@ -282,9 +311,12 @@
 
         <!-- Section 1: Progress Matrix -->
         <div class="class-section card">
-          <div class="class-section-header">
+        <div class="class-section-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <h3>📈 Class Progress Matrix</h3>
-            <span class="helper-text">Visual performance grid for all assignments in this class.</span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span class="helper-text">Visual performance grid for all assignments in this class.</span>
+              <button @click="exportClassCSV(selectedClassId)" class="btn btn-secondary btn-sm">📥 Export CSV</button>
+            </div>
           </div>
 
           <div v-if="selectedClassDetail.assignments.length === 0" class="matrix-placeholder">
@@ -338,6 +370,25 @@
           </div>
         </div>
 
+        <!-- Section: Announcements -->
+        <div class="class-section card" style="margin-top: 20px;">
+          <div class="class-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3>📢 Class Announcements</h3>
+          </div>
+          <form @submit.prevent="postAnnouncement" style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+            <input type="text" v-model="newAnnouncement" placeholder="Post an announcement to students..." style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);" />
+            <button type="submit" class="btn btn-primary btn-sm" :disabled="!newAnnouncement.trim()">Post</button>
+          </form>
+          <div v-if="classAnnouncements.length === 0" style="color: var(--text-muted); font-size: 14px; padding: 8px 0;">No announcements yet.</div>
+          <div v-for="ann in classAnnouncements" :key="ann.id" style="display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 8px; background: var(--bg-main);">
+            <div>
+              <p style="margin: 0; font-size: 14px;">{{ ann.message }}</p>
+              <small style="color: var(--text-muted);">{{ new Date(ann.created_at).toLocaleString() }}</small>
+            </div>
+            <button @click="deleteAnnouncement(ann.id)" class="btn-sm" style="background: none; border: none; cursor: pointer; color: var(--danger); font-size: 16px; min-height: auto; box-shadow: none; padding: 0 4px;">×</button>
+          </div>
+        </div>
+
         <!-- Section 2: Student Roster Management -->
         <div class="class-section card">
           <div class="class-section-header">
@@ -348,6 +399,9 @@
               </button>
               <button @click="openCreateStudentModal" class="btn btn-primary btn-sm">
                 ＋ Register New Pupil
+              </button>
+              <button @click="showImportCSVModal = true; csvPreview = []" class="btn btn-secondary btn-sm">
+                📤 Import CSV
               </button>
             </div>
           </div>
@@ -787,7 +841,10 @@
                   </span>
                 </td>
                 <td>
-                  <button @click="viewSingleAnswers(res)" class="btn btn-secondary btn-sm">Inspect</button>
+                  <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                    <button @click="viewSingleAnswers(res)" class="btn btn-secondary btn-sm">Inspect</button>
+                    <input type="text" :value="res.feedback_text || ''" @blur="saveFeedback(res.id, $event.target.value)" placeholder="Add feedback..." style="padding: 4px 8px; font-size: 12px; border: 1px solid var(--border-color); border-radius: 4px; width: 160px; background: var(--bg-card); color: var(--text-main);" />
+                  </div>
                 </td>
               </tr>
               <tr v-if="currentResults.length === 0">
@@ -798,6 +855,44 @@
         </div>
       </div>
     </div>
+    <!-- Assignment Stats Modal -->
+    <div v-if="showStatsModal" class="modal-overlay">
+      <div class="modal card">
+        <div class="modal-header">
+          <h2>Assignment Statistics</h2>
+          <button @click="showStatsModal = false" class="btn-close">×</button>
+        </div>
+        <div v-if="currentStats" style="padding: 8px 0;">
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;">
+            <div style="text-align: center; padding: 12px; background: var(--primary-light); border-radius: 8px;">
+              <div style="font-size: 24px; font-weight: 800; color: var(--primary);">{{ currentStats.submitted }}/{{ currentStats.totalStudents }}</div>
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Submitted</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--success-light); border-radius: 8px;">
+              <div style="font-size: 24px; font-weight: 800; color: var(--success);">{{ currentStats.avgPercentage }}%</div>
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Avg Grade</div>
+            </div>
+            <div style="text-align: center; padding: 12px; background: var(--warning-light); border-radius: 8px;">
+              <div style="font-size: 24px; font-weight: 800; color: var(--warning);">{{ currentStats.passRate }}%</div>
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Pass Rate</div>
+            </div>
+          </div>
+          <h4 style="margin-bottom: 10px;">Score Distribution</h4>
+          <div v-for="(count, range) in currentStats.scoreDistribution" :key="range" style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+            <span style="width: 60px; font-size: 12px; color: var(--text-muted);">{{ range }}%</span>
+            <div style="flex: 1; height: 16px; background: var(--border-color); border-radius: 4px; overflow: hidden;">
+              <div :style="{ width: `${currentStats.submitted > 0 ? Math.round((count / currentStats.submitted) * 100) : 0}%`, height: '100%', background: 'var(--primary)', borderRadius: '4px' }"></div>
+            </div>
+            <span style="font-size: 12px; font-weight: 700; width: 24px; text-align: right;">{{ count }}</span>
+          </div>
+        </div>
+        <div v-else style="text-align: center; padding: 24px; color: var(--text-muted);">Loading stats...</div>
+        <div class="modal-buttons" style="margin-top: 16px;">
+          <button @click="showStatsModal = false" class="btn btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Assign Course Modal -->
     <div v-if="showAssignCourseModal" class="modal-overlay">
       <div class="modal card">
@@ -834,6 +929,31 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- CSV Import Modal -->
+    <div v-if="showImportCSVModal" class="modal-overlay">
+      <div class="modal card">
+        <div class="modal-header">
+          <h2>Import Students from CSV</h2>
+          <button @click="showImportCSVModal = false" class="btn-close">×</button>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Upload a CSV file with columns: name, email (and optionally: username, password)</p>
+        <input type="file" accept=".csv" @change="handleCSVUpload" style="margin-bottom: 16px;" />
+        <div v-if="csvPreview.length > 0" style="margin-bottom: 16px; max-height: 200px; overflow-y: auto;">
+          <p style="font-size: 13px; font-weight: 700; margin-bottom: 8px;">Preview ({{ csvPreview.length }} students):</p>
+          <div v-for="(row, idx) in csvPreview.slice(0, 5)" :key="idx" style="font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--border-color);">
+            {{ row.name }} — {{ row.email }}
+          </div>
+          <div v-if="csvPreview.length > 5" style="font-size: 12px; color: var(--text-muted); padding: 4px 8px;">...and {{ csvPreview.length - 5 }} more</div>
+        </div>
+        <div class="modal-buttons">
+          <button type="button" @click="showImportCSVModal = false" class="btn btn-secondary">Cancel</button>
+          <button @click="importCSVStudents" class="btn btn-primary" :disabled="csvPreview.length === 0 || importingCSV">
+            {{ importingCSV ? 'Importing...' : `Import ${csvPreview.length} Students` }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -900,6 +1020,25 @@ const selectedUserForPassword = ref(null)
 const newUserPassword = ref('')
 const savingUser = ref(false)
 
+// Filter worksheets
+const filteredWorksheets = computed(() => {
+  let list = worksheets.value
+  if (worksheetSearch.value.trim()) {
+    const q = worksheetSearch.value.trim().toLowerCase()
+    list = list.filter(ws => 
+      (ws.title || '').toLowerCase().includes(q) ||
+      (ws.subject || '').toLowerCase().includes(q)
+    )
+  }
+  if (worksheetStatusFilter.value === 'published') list = list.filter(ws => ws.is_published)
+  if (worksheetStatusFilter.value === 'draft') list = list.filter(ws => !ws.is_published)
+  if (worksheetTagFilter.value.trim()) {
+    const tagQ = worksheetTagFilter.value.trim().toLowerCase()
+    list = list.filter(ws => (ws.tags || '').toLowerCase().includes(tagQ))
+  }
+  return list
+})
+
 // Filter users list by query
 const filteredUsers = computed(() => {
   const query = userSearchQuery.value.trim().toLowerCase()
@@ -948,6 +1087,24 @@ const newStudentForm = ref({ name: '', email: '', role: 'student' })
 
 // Templates state
 const templates = ref([])
+
+// Worksheet filter refs
+const worksheetSearch = ref('')
+const worksheetStatusFilter = ref('')
+const worksheetTagFilter = ref('')
+
+// Announcements state
+const classAnnouncements = ref([])
+const newAnnouncement = ref('')
+
+// Stats modal state
+const showStatsModal = ref(false)
+const currentStats = ref(null)
+
+// CSV import state
+const showImportCSVModal = ref(false)
+const csvPreview = ref([])
+const importingCSV = ref(false)
 
 const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 
@@ -1241,6 +1398,7 @@ const fetchClassDetail = async (classId) => {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     selectedClassDetail.value = await res.json()
+    await fetchAnnouncements(classId)
   } catch (err) {
     alert('Failed to load class details: ' + err.message)
   } finally {
@@ -1676,11 +1834,214 @@ const formatDate = (dateStr) => {
   if (!dateStr) return 'N/A'
   return new Date(dateStr).toLocaleString()
 }
+
+// ─── Duplicate Worksheet ──────────────────────────────────────────────────────
+const duplicateWorksheet = async (id) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/worksheets/${id}/duplicate`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to duplicate worksheet')
+    await fetchData()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Delete Assignment ────────────────────────────────────────────────────────
+const deleteAssignmentItem = async (assignmentId, worksheetId) => {
+  if (!confirm('Delete this assignment? Students will no longer see it.')) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/worksheets/${worksheetId}/assignments/${assignmentId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to delete assignment')
+    await fetchData()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Copy Class Code ──────────────────────────────────────────────────────────
+const copyClassCode = (classId) => {
+  navigator.clipboard.writeText(classId).then(() => {
+    alert('Class code copied to clipboard!')
+  }).catch(() => {
+    prompt('Copy this class code:', classId)
+  })
+}
+
+// ─── Export Class CSV ─────────────────────────────────────────────────────────
+const exportClassCSV = async (classId) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/${classId}/export-csv`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to export CSV')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'class-progress.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Announcements ─────────────────────────────────────────────────────────────
+const fetchAnnouncements = async (classId) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/${classId}/announcements`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) classAnnouncements.value = await res.json()
+  } catch (err) {
+    console.error('Failed to fetch announcements:', err)
+  }
+}
+
+const postAnnouncement = async () => {
+  if (!newAnnouncement.value.trim()) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/${selectedClassId.value}/announcements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ message: newAnnouncement.value.trim() })
+    })
+    if (!res.ok) throw new Error('Failed to post announcement')
+    newAnnouncement.value = ''
+    await fetchAnnouncements(selectedClassId.value)
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const deleteAnnouncement = async (annId) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/announcements/${annId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) await fetchAnnouncements(selectedClassId.value)
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Assignment Stats ─────────────────────────────────────────────────────────
+const fetchAssignmentStats = async (assignmentId) => {
+  const token = localStorage.getItem('token')
+  currentStats.value = null
+  showStatsModal.value = true
+  try {
+    const res = await fetch(`${API_BASE}/worksheets/assignments/${assignmentId}/stats`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) currentStats.value = await res.json()
+  } catch (err) {
+    alert(err.message)
+    showStatsModal.value = false
+  }
+}
+
+// ─── Teacher Feedback ─────────────────────────────────────────────────────────
+const saveFeedback = async (submissionId, feedbackText) => {
+  const token = localStorage.getItem('token')
+  try {
+    await fetch(`${API_BASE}/submissions/${submissionId}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ feedback_text: feedbackText })
+    })
+  } catch (err) {
+    console.error('Failed to save feedback:', err)
+  }
+}
+
+// ─── CSV Import ───────────────────────────────────────────────────────────────
+const handleCSVUpload = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const lines = e.target.result.split('\n').filter(l => l.trim())
+    if (lines.length < 2) { alert('CSV must have a header row and at least one data row'); return }
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase())
+    const nameIdx = headers.findIndex(h => h === 'name')
+    const emailIdx = headers.findIndex(h => h === 'email')
+    if (nameIdx === -1 || emailIdx === -1) { alert('CSV must have "name" and "email" columns'); return }
+    const usernameIdx = headers.findIndex(h => h === 'username')
+    const passwordIdx = headers.findIndex(h => h === 'password')
+    csvPreview.value = lines.slice(1).map(line => {
+      const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+      return {
+        name: cols[nameIdx] || '',
+        email: cols[emailIdx] || '',
+        username: usernameIdx !== -1 ? cols[usernameIdx] : '',
+        password: passwordIdx !== -1 ? cols[passwordIdx] : ''
+      }
+    }).filter(r => r.name && r.email)
+  }
+  reader.readAsText(file)
+}
+
+const importCSVStudents = async () => {
+  if (csvPreview.value.length === 0) return
+  importingCSV.value = true
+  const token = localStorage.getItem('token')
+  let successCount = 0
+  let errors = []
+  for (const student of csvPreview.value) {
+    try {
+      const res = await fetch(`${API_BASE}/classes/students/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ...student, class_id: selectedClassId.value })
+      })
+      if (res.ok) successCount++
+      else {
+        const data = await res.json()
+        errors.push(`${student.name}: ${data.error}`)
+      }
+    } catch (err) {
+      errors.push(`${student.name}: ${err.message}`)
+    }
+  }
+  importingCSV.value = false
+  showImportCSVModal.value = false
+  csvPreview.value = []
+  let msg = `Import complete! ${successCount} students imported.`
+  if (errors.length > 0) msg += `\n\nErrors:\n${errors.slice(0, 5).join('\n')}`
+  alert(msg)
+  if (selectedClassId.value) await fetchClassDetail(selectedClassId.value)
+}
 </script>
 <style scoped>
 .teacher-dashboard {
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.tag-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 2px 6px;
+  border-radius: 12px;
+  margin-right: 4px;
+  margin-bottom: 2px;
 }
 
 .dashboard-header {

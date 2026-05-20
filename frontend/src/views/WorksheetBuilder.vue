@@ -35,6 +35,10 @@
             <label>Grade Level</label>
             <input type="text" v-model="sheet.grade_level" placeholder="e.g. 3a" />
           </div>
+          <div class="form-group">
+            <label>Tags</label>
+            <input type="text" v-model="sheet.tags" placeholder="e.g. grammar, vocabulary, beginner" />
+          </div>
         </div>
 
         <div class="ai-section">
@@ -692,6 +696,7 @@ const sheet = ref({
   description: '',
   subject: '',
   grade_level: '',
+  tags: '',
   blocks: []
 })
 
@@ -712,6 +717,7 @@ onMounted(async () => {
         description: data.description,
         subject: data.subject,
         grade_level: data.grade_level,
+        tags: data.tags || '',
         blocks: data.content?.blocks || []
       }
     } catch (err) {
@@ -1026,6 +1032,7 @@ const saveWorksheet = async (publish = false) => {
     description: sheet.value.description,
     subject: sheet.value.subject,
     grade_level: sheet.value.grade_level,
+    tags: sheet.value.tags || '',
     content: { blocks: sheet.value.blocks },
     is_published: publish
   }
