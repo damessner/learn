@@ -85,14 +85,19 @@ fi
 
 # 4. Check / Download template
 TEMPLATE_STORAGE="local"
-TEMPLATE_FILE="debian-12-standard_12.2-1_amd64.tar.zst"
-TEMPLATE_PATH="/var/lib/vz/template/cache/${TEMPLATE_FILE}"
 
 echo -e "${BLUE}Updating Proxmox template database...${NC}"
 pveam update || true
 
+# Dynamically find the latest Debian 12 standard template
+echo -e "${BLUE}Finding latest Debian 12 standard template...${NC}"
+TEMPLATE_FILE=$(pveam available --section system | awk '{print $2}' | grep '^debian-12-standard_' | head -n 1)
+TEMPLATE_FILE=${TEMPLATE_FILE:-"debian-12-standard_12.2-1_amd64.tar.zst"}
+
+TEMPLATE_PATH="/var/lib/vz/template/cache/${TEMPLATE_FILE}"
+
 if [ ! -f "$TEMPLATE_PATH" ]; then
-  echo -e "${BLUE}Downloading Debian 12 standard LXC template...${NC}"
+  echo -e "${BLUE}Downloading Debian 12 standard LXC template ($TEMPLATE_FILE)...${NC}"
   pveam download "$TEMPLATE_STORAGE" "$TEMPLATE_FILE"
 fi
 
