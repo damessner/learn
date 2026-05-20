@@ -116,8 +116,8 @@ router.post('/login', loginLimiter, (req, res) => {
     const loweredUser = trimmedUser.toLowerCase();
     const user = db.prepare(`
       SELECT * FROM users
-      WHERE LOWER(username) = LOWER(?) OR LOWER(email) = ?
-    `).get(trimmedUser, loweredUser);
+      WHERE LOWER(username) = ? OR LOWER(email) = ?
+    `).get(loweredUser, loweredUser);
     
     if (!user || !user.password_hash) {
       return res.status(401).json({ error: 'Invalid username or password' });
