@@ -39,6 +39,14 @@
 
         <div class="ai-section">
           <h3>AI Worksheet Draft</h3>
+          <button @click="openWizardModal" class="btn btn-primary" style="width: 100%; margin-bottom: 12px; font-weight: bold; background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;">
+            🪄 Launch AI Wizard
+          </button>
+          
+          <div class="ai-divider">
+            <span>OR MANUAL PROMPT</span>
+          </div>
+
           <div class="form-group">
             <label>Provider</label>
             <select v-model="aiProvider">
@@ -368,6 +376,247 @@
         </div>
       </div>
     </div>
+
+    <!-- AI Generator Wizard Modal Overlay -->
+    <div v-if="showStartWizard" class="wizard-modal-overlay">
+      <div class="wizard-modal-card">
+        <!-- Loading State Overlay -->
+        <div v-if="aiLoading" class="wizard-loading-container">
+          <div class="wizard-spinner-emoji">🪄</div>
+          <h3>Weaving Your Worksheet...</h3>
+          <p>Our AI is generating exercises based on your specifications. Please hold on.</p>
+          <div class="wizard-progress-bar">
+            <div class="wizard-progress-indefinite"></div>
+          </div>
+        </div>
+
+        <template v-else>
+          <header class="modal-header">
+            <h2>✨ Worksheet Creation Wizard</h2>
+            <button @click="showStartWizard = false" class="btn-close" v-if="isEditing || sheet.blocks.length > 0">&times;</button>
+          </header>
+
+          <div class="wizard-scroll-container">
+            <!-- Phase 1: Choice between Manual or Wizard -->
+            <div v-if="wizardTab === 'choice'" class="wizard-choice-stage">
+              <h3 class="stage-title">How would you like to build this worksheet?</h3>
+              <p class="stage-subtitle">Choose a path to get started with your new worksheet.</p>
+              
+              <div class="choice-cards-grid">
+                <div @click="showStartWizard = false" class="choice-card hover-glow">
+                  <div class="choice-icon">🛠️</div>
+                  <h4>Create Manually</h4>
+                  <p>Start with a blank canvas and add exercises step-by-step from the editor.</p>
+                  <button class="btn btn-secondary">Start Blank</button>
+                </div>
+
+                <div @click="wizardTab = 'wizard'" class="choice-card hover-glow active-card">
+                  <div class="choice-icon">🪄</div>
+                  <h4>AI Worksheet Wizard</h4>
+                  <p>Generate a complete worksheet with custom exercises in seconds using AI.</p>
+                  <button class="btn btn-primary">Open Wizard</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Phase 2: Configuration Wizard -->
+            <div v-else-if="wizardTab === 'wizard'" class="wizard-config-stage">
+              <div class="wizard-form">
+                
+                <div class="form-section">
+                  <h4>1. General Information</h4>
+                  <div class="form-group">
+                    <label>Worksheet Topic <span class="required">*</span></label>
+                    <input 
+                      type="text" 
+                      v-model="wizardData.topic" 
+                      placeholder="e.g. Present Progressive, Basic Fractions, Animals Vocabulary" 
+                      required
+                      class="wizard-input-text"
+                    />
+                  </div>
+
+                  <div class="wizard-form-row">
+                    <div class="form-group">
+                      <label>Subject</label>
+                      <input type="text" v-model="wizardData.subject" placeholder="e.g. English" class="wizard-input-text" />
+                    </div>
+                    <div class="form-group">
+                      <label>Grade Level / Class</label>
+                      <input type="text" v-model="wizardData.grade_level" placeholder="e.g. 3a" class="wizard-input-text" />
+                    </div>
+                    <div class="form-group">
+                      <label>Difficulty</label>
+                      <select v-model="wizardData.difficulty" class="wizard-select">
+                        <option value="Beginner">Beginner (A1/Basic)</option>
+                        <option value="Intermediate">Intermediate (A2/B1)</option>
+                        <option value="Advanced">Advanced (B2+)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <div class="section-header-row">
+                    <h4>2. Select Exercise Quantities</h4>
+                    <button type="button" @click="resetWizardCounts" class="btn-clear-counts">Reset Counts</button>
+                  </div>
+                  <p class="section-subtitle">Select which task types to generate and how many of each (max 15 total):</p>
+                  
+                  <div class="exercise-quantity-grid">
+                    <div class="exercise-quantity-card">
+                      <div class="eq-left">
+                        <span class="eq-emoji">✏️</span>
+                        <div class="eq-details">
+                          <span class="eq-name">Gap Fill</span>
+                          <span class="eq-desc">Sentences with blanks</span>
+                        </div>
+                      </div>
+                      <div class="eq-right">
+                        <button type="button" @click="decrementWizardCount('gap_fill')" class="btn-counter" :disabled="wizardData.counts.gap_fill <= 0">-</button>
+                        <span class="eq-count">{{ wizardData.counts.gap_fill }}</span>
+                        <button type="button" @click="incrementWizardCount('gap_fill')" class="btn-counter" :disabled="wizardData.counts.gap_fill >= 15">+</button>
+                      </div>
+                    </div>
+
+                    <div class="exercise-quantity-card">
+                      <div class="eq-left">
+                        <span class="eq-emoji">👉</span>
+                        <div class="eq-details">
+                          <span class="eq-name">Drag & Drop</span>
+                          <span class="eq-desc">Drag words to correct spots</span>
+                        </div>
+                      </div>
+                      <div class="eq-right">
+                        <button type="button" @click="decrementWizardCount('drag_drop')" class="btn-counter" :disabled="wizardData.counts.drag_drop <= 0">-</button>
+                        <span class="eq-count">{{ wizardData.counts.drag_drop }}</span>
+                        <button type="button" @click="incrementWizardCount('drag_drop')" class="btn-counter" :disabled="wizardData.counts.drag_drop >= 15">+</button>
+                      </div>
+                    </div>
+
+                    <div class="exercise-quantity-card">
+                      <div class="eq-left">
+                        <span class="eq-emoji">☑️</span>
+                        <div class="eq-details">
+                          <span class="eq-name">Multiple Choice</span>
+                          <span class="eq-desc">Select all correct options</span>
+                        </div>
+                      </div>
+                      <div class="eq-right">
+                        <button type="button" @click="decrementWizardCount('multiple_choice')" class="btn-counter" :disabled="wizardData.counts.multiple_choice <= 0">-</button>
+                        <span class="eq-count">{{ wizardData.counts.multiple_choice }}</span>
+                        <button type="button" @click="incrementWizardCount('multiple_choice')" class="btn-counter" :disabled="wizardData.counts.multiple_choice >= 15">+</button>
+                      </div>
+                    </div>
+
+                    <div class="exercise-quantity-card">
+                      <div class="eq-left">
+                        <span class="eq-emoji">🔘</span>
+                        <div class="eq-details">
+                          <span class="eq-name">Single Choice</span>
+                          <span class="eq-desc">Choose one correct answer</span>
+                        </div>
+                      </div>
+                      <div class="eq-right">
+                        <button type="button" @click="decrementWizardCount('single_choice')" class="btn-counter" :disabled="wizardData.counts.single_choice <= 0">-</button>
+                        <span class="eq-count">{{ wizardData.counts.single_choice }}</span>
+                        <button type="button" @click="incrementWizardCount('single_choice')" class="btn-counter" :disabled="wizardData.counts.single_choice >= 15">+</button>
+                      </div>
+                    </div>
+
+                    <div class="exercise-quantity-card">
+                      <div class="eq-left">
+                        <span class="eq-emoji">🔗</span>
+                        <div class="eq-details">
+                          <span class="eq-name">Connect Texts</span>
+                          <span class="eq-desc">Match corresponding phrases</span>
+                        </div>
+                      </div>
+                      <div class="eq-right">
+                        <button type="button" @click="decrementWizardCount('matching')" class="btn-counter" :disabled="wizardData.counts.matching <= 0">-</button>
+                        <span class="eq-count">{{ wizardData.counts.matching }}</span>
+                        <button type="button" @click="incrementWizardCount('matching')" class="btn-counter" :disabled="wizardData.counts.matching >= 15">+</button>
+                      </div>
+                    </div>
+
+                    <div class="exercise-quantity-card">
+                      <div class="eq-left">
+                        <span class="eq-emoji">📖</span>
+                        <div class="eq-details">
+                          <span class="eq-name">Vocabulary</span>
+                          <span class="eq-desc">Key word translation lists</span>
+                        </div>
+                      </div>
+                      <div class="eq-right">
+                        <button type="button" @click="decrementWizardCount('vocabulary')" class="btn-counter" :disabled="wizardData.counts.vocabulary <= 0">-</button>
+                        <span class="eq-count">{{ wizardData.counts.vocabulary }}</span>
+                        <button type="button" @click="incrementWizardCount('vocabulary')" class="btn-counter" :disabled="wizardData.counts.vocabulary >= 15">+</button>
+                      </div>
+                    </div>
+
+                    <div class="exercise-quantity-card">
+                      <div class="eq-left">
+                        <span class="eq-emoji">📝</span>
+                        <div class="eq-details">
+                          <span class="eq-name">Text Explanation</span>
+                          <span class="eq-desc">Grammar rules or readings</span>
+                        </div>
+                      </div>
+                      <div class="eq-right">
+                        <button type="button" @click="decrementWizardCount('text')" class="btn-counter" :disabled="wizardData.counts.text <= 0">-</button>
+                        <span class="eq-count">{{ wizardData.counts.text }}</span>
+                        <button type="button" @click="incrementWizardCount('text')" class="btn-counter" :disabled="wizardData.counts.text >= 15">+</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-section">
+                  <h4>3. Special Instructions / Rules (Optional)</h4>
+                  <div class="form-group">
+                    <textarea 
+                      v-model="wizardData.customRules" 
+                      rows="3" 
+                      placeholder="e.g. use active verbs, focus on daily routines, include a short story about school life, keep sentences funny"
+                      class="wizard-textarea"
+                    ></textarea>
+                  </div>
+                </div>
+
+                <div class="wizard-footer-settings">
+                  <div class="wizard-provider-group">
+                    <label>AI Model Provider:</label>
+                    <select v-model="wizardData.provider" class="wizard-select wizard-provider-select">
+                      <option value="gemini">Gemini API</option>
+                      <option value="ollama">Ollama (local)</option>
+                      <option value="auto">Auto (Gemini fallback to Ollama)</option>
+                    </select>
+                  </div>
+                  <div class="wizard-form-actions">
+                    <button 
+                      type="button" 
+                      @click="isEditing || sheet.blocks.length > 0 ? (showStartWizard = false) : (wizardTab = 'choice')" 
+                      class="btn btn-secondary"
+                    >
+                      Back
+                    </button>
+                    <button 
+                      type="button" 
+                      @click="generateFromWizard" 
+                      :disabled="aiLoading" 
+                      class="btn btn-primary btn-generate-magic"
+                    >
+                      Generate Worksheet 🚀
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -390,6 +639,53 @@ const saving = ref(false)
 const aiLoading = ref(false)
 const aiProvider = ref('gemini')
 const aiPrompt = ref('')
+
+// AI Wizard State Variables
+const showStartWizard = ref(false)
+const wizardTab = ref('choice') // 'choice' or 'wizard'
+const wizardData = ref({
+  topic: '',
+  subject: 'English',
+  grade_level: '',
+  difficulty: 'Intermediate',
+  provider: 'gemini',
+  customRules: '',
+  counts: {
+    gap_fill: 0,
+    drag_drop: 0,
+    multiple_choice: 0,
+    single_choice: 0,
+    matching: 0,
+    vocabulary: 0,
+    text: 0
+  }
+})
+
+const incrementWizardCount = (type) => {
+  if (wizardData.value.counts[type] !== undefined && wizardData.value.counts[type] < 15) {
+    wizardData.value.counts[type]++
+  }
+}
+
+const decrementWizardCount = (type) => {
+  if (wizardData.value.counts[type] !== undefined && wizardData.value.counts[type] > 0) {
+    wizardData.value.counts[type]--
+  }
+}
+
+const resetWizardCounts = () => {
+  Object.keys(wizardData.value.counts).forEach(key => {
+    wizardData.value.counts[key] = 0
+  })
+}
+
+const openWizardModal = () => {
+  wizardTab.value = 'choice'
+  wizardData.value.subject = sheet.value.subject || 'English'
+  wizardData.value.grade_level = sheet.value.grade_level || ''
+  wizardData.value.provider = aiProvider.value
+  showStartWizard.value = true
+}
 
 const sheet = ref({
   title: '',
@@ -422,6 +718,9 @@ onMounted(async () => {
       alert(err.message)
       router.push('/teacher')
     }
+  } else {
+    showStartWizard.value = true
+    wizardTab.value = 'choice'
   }
 })
 
@@ -596,6 +895,86 @@ const importVocabFile = (event, block) => {
     parseVocabLines(block)
   }
   reader.readAsText(file)
+}
+
+const generateFromWizard = async () => {
+  if (!wizardData.value.topic.trim()) {
+    alert('Please enter a topic!')
+    return
+  }
+
+  aiLoading.value = true
+  const token = localStorage.getItem('token')
+
+  // Construct structured detailed instructions prompt for LLM based on counts
+  const parts = []
+  parts.push(`Create an educational worksheet about "${wizardData.value.topic.trim()}" for grade level/class "${wizardData.value.grade_level.trim() || 'any'}" (subject: "${wizardData.value.subject.trim() || 'English'}", difficulty level: "${wizardData.value.difficulty}").`)
+
+  const tasksRequested = []
+  if (wizardData.value.counts.text > 0) {
+    tasksRequested.push(`${wizardData.value.counts.text} text instruction/reading passage block(s) (type: "text")`)
+  }
+  if (wizardData.value.counts.gap_fill > 0) {
+    tasksRequested.push(`${wizardData.value.counts.gap_fill} gap fill exercise(s) (type: "gap_fill")`)
+  }
+  if (wizardData.value.counts.drag_drop > 0) {
+    tasksRequested.push(`${wizardData.value.counts.drag_drop} drag and drop exercise(s) (type: "drag_drop")`)
+  }
+  if (wizardData.value.counts.multiple_choice > 0) {
+    tasksRequested.push(`${wizardData.value.counts.multiple_choice} multiple choice question(s) (type: "multiple_choice")`)
+  }
+  if (wizardData.value.counts.single_choice > 0) {
+    tasksRequested.push(`${wizardData.value.counts.single_choice} single choice question(s) (type: "single_choice")`)
+  }
+  if (wizardData.value.counts.matching > 0) {
+    tasksRequested.push(`${wizardData.value.counts.matching} text matching / connect phrases exercise(s) (type: "matching")`)
+  }
+  if (wizardData.value.counts.vocabulary > 0) {
+    tasksRequested.push(`${wizardData.value.counts.vocabulary} vocabulary translation exercise(s) (type: "vocabulary")`)
+  }
+
+  if (tasksRequested.length > 0) {
+    parts.push(`The worksheet MUST contain exactly the following content blocks in this sequence:`)
+    tasksRequested.forEach((task, idx) => {
+      parts.push(`${idx + 1}. ${task}`)
+    })
+  } else {
+    parts.push(`Please include a standard mix of text instructions, gap fill, and multiple choice questions.`)
+  }
+
+  if (wizardData.value.customRules.trim()) {
+    parts.push(`Additional guidelines: ${wizardData.value.customRules.trim()}`)
+  }
+
+  const promptText = parts.join('\n')
+
+  try {
+    const resp = await fetch(`${API_BASE}/worksheets/ai/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        provider: wizardData.value.provider,
+        prompt: promptText
+      })
+    })
+    const data = await resp.json()
+    if (!resp.ok) throw new Error(data?.error || 'AI generation failed')
+
+    sheet.value.title = data.title || sheet.value.title
+    sheet.value.description = data.description || sheet.value.description
+    sheet.value.subject = data.subject || sheet.value.subject
+    sheet.value.grade_level = data.grade_level || sheet.value.grade_level
+    sheet.value.blocks = Array.isArray(data.content?.blocks) ? data.content.blocks : []
+
+    showStartWizard.value = false
+  } catch (err) {
+    alert(err.message)
+  } finally {
+    aiLoading.value = false
+  }
 }
 
 const generateWorksheetWithAI = async () => {
@@ -1408,5 +1787,413 @@ const submitLocalPreview = () => {
 .review-note {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+/* AI Generator Wizard Overlay Styles */
+.wizard-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 99999; /* Higher than live preview overlay */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.wizard-modal-card {
+  width: 100%;
+  max-width: 800px;
+  height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wizard-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px;
+}
+
+/* Loading State */
+.wizard-loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  padding: 40px;
+  text-align: center;
+  background-color: var(--bg-main);
+  z-index: 10;
+}
+
+.wizard-spinner-emoji {
+  font-size: 64px;
+  margin-bottom: 24px;
+  animation: magicWand 1.5s ease-in-out infinite;
+}
+
+@keyframes magicWand {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(20deg) scale(1.15); filter: drop-shadow(0 0 15px var(--primary)); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+.wizard-loading-container h3 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.wizard-loading-container p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.wizard-progress-bar {
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  background-color: var(--border-color);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.wizard-progress-indefinite {
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary) 0%, #6366f1 100%);
+  border-radius: 3px;
+  position: absolute;
+  left: -40%;
+  animation: indefiniteProgress 1.6s infinite linear;
+}
+
+@keyframes indefiniteProgress {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
+/* Phase 1: Choice Stage */
+.wizard-choice-stage {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.stage-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+}
+
+.stage-subtitle {
+  color: var(--text-muted);
+  margin-bottom: 32px;
+}
+
+.choice-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.choice-card {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 32px 24px;
+  cursor: pointer;
+  background-color: var(--bg-card);
+  transition: all 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.choice-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--primary);
+  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.15);
+}
+
+.choice-card.active-card {
+  border-color: var(--primary);
+  background: linear-gradient(180deg, var(--bg-card) 0%, rgba(99, 102, 241, 0.03) 100%);
+}
+
+.choice-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.choice-card h4 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+}
+
+.choice-card p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 24px;
+  flex: 1;
+}
+
+.choice-card button {
+  width: 100%;
+  pointer-events: none;
+}
+
+/* Phase 2: Configuration Stage */
+.wizard-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-section {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 24px;
+}
+
+.form-section h4 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-color);
+}
+
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.btn-clear-counts {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-clear-counts:hover {
+  text-decoration: underline;
+}
+
+.section-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0 0 16px 0;
+}
+
+.wizard-input-text {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.wizard-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.wizard-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.wizard-textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  font-size: 14px;
+  color: var(--text-color);
+  resize: vertical;
+}
+
+/* Grid for task counts */
+.exercise-quantity-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.exercise-quantity-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+}
+
+.eq-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.eq-emoji {
+  font-size: 22px;
+}
+
+.eq-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.eq-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.eq-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.eq-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-counter {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-main);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 700;
+  transition: all 0.2s;
+  color: var(--text-color);
+}
+
+.btn-counter:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.btn-counter:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.eq-count {
+  font-size: 14px;
+  font-weight: 700;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Footer layout */
+.wizard-footer-settings {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  background-color: var(--bg-card);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.wizard-provider-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wizard-provider-group label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.wizard-provider-select {
+  width: auto;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.wizard-form-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-generate-magic {
+  font-weight: bold;
+  background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+  color: white !important;
+  border: none;
+}
+
+.btn-generate-magic:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+/* Sidebar divider style */
+.ai-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 16px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.ai-divider::before,
+.ai-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ai-divider span {
+  padding: 0 10px;
 }
 </style>
