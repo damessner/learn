@@ -311,15 +311,15 @@ function seed() {
 
   // Create corresponding worksheet assignments for this class so students can see and solve them in sequence
   db.prepare(`
-    INSERT OR REPLACE INTO assignments (id, worksheet_id, class_name, class_id, created_by, course_assignment_id)
+    INSERT OR REPLACE INTO assignments (id, worksheet_id, class_name, class_id, created_by)
     VALUES 
-      (?, ?, ?, ?, ?, ?),
-      (?, ?, ?, ?, ?, ?),
-      (?, ?, ?, ?, ?, ?)
+      (?, ?, ?, ?, ?),
+      (?, ?, ?, ?, ?),
+      (?, ?, ?, ?, ?)
   `).run(
-    'assign_prog_ws1_id', ws1Id, '3a English', 'class_3a_id', teacherId, courseAssignId,
-    'assign_prog_ws2_id', ws2Id, '3a English', 'class_3a_id', teacherId, courseAssignId,
-    'assign_prog_ws3_id', ws3Id, '3a English', 'class_3a_id', teacherId, courseAssignId
+    'assign_prog_ws1_id', ws1Id, '3a English', 'class_3a_id', teacherId,
+    'assign_prog_ws2_id', ws2Id, '3a English', 'class_3a_id', teacherId,
+    'assign_prog_ws3_id', ws3Id, '3a English', 'class_3a_id', teacherId
   );
 
   console.log('✅ Seeding completed! Present Progressive course and assignments loaded.');
