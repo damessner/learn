@@ -3,7 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const DB_PATH = process.env.DB_PATH || './db/learnflow.db';
+const rawDbPath = process.env.DB_PATH || './db/learnflow.db';
+const DB_PATH = path.isAbsolute(rawDbPath)
+  ? rawDbPath
+  : path.resolve(__dirname, '..', rawDbPath);
 
 let db;
 

@@ -3,7 +3,10 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const crypto = require('crypto');
 
-const DB_PATH = process.env.DB_PATH || './db/learnflow.db';
+const rawDbPath = process.env.DB_PATH || './db/learnflow.db';
+const DB_PATH = path.isAbsolute(rawDbPath)
+  ? rawDbPath
+  : path.resolve(__dirname, '..', rawDbPath);
 const db = new Database(DB_PATH);
 
 function hashPassword(password) {
