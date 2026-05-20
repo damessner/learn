@@ -8,10 +8,17 @@ const { verifyMicrosoftIdToken } = require('../services/microsoftAuth');
 
 const router = express.Router();
 const DEV_JWT_SECRET_PLACEHOLDER = 'dev-secret-change-in-production-long-secret-key-64-chars-minimum';
+const DEV_MS_LOGIN_SECRET_PLACEHOLDER = 'change_me_for_dev';
 const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET_PLACEHOLDER;
 const JWT_EXPIRES = '24h';
 const ALLOW_INSECURE_MS_LOGIN = process.env.ALLOW_INSECURE_MS_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
-const DEV_MS_LOGIN_SECRET = process.env.DEV_MS_LOGIN_SECRET;
+const DEV_MS_LOGIN_SECRET = (
+  process.env.DEV_MS_LOGIN_SECRET &&
+  process.env.DEV_MS_LOGIN_SECRET.trim() &&
+  process.env.DEV_MS_LOGIN_SECRET !== DEV_MS_LOGIN_SECRET_PLACEHOLDER
+)
+  ? process.env.DEV_MS_LOGIN_SECRET
+  : null;
 
 // Stricter rate limit specifically for login endpoints to limit brute-force attempts
 const loginLimiter = rateLimit({
@@ -106,8 +113,12 @@ router.post('/login', loginLimiter, (req, res) => {
     }
 
     // Search by username or email
-    const trimmedUser = username.trim().toLowerCase();
-    const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(username.trim(), trimmedUser);
+    const trimmedUser = username.trim();
+    const loweredUser = trimmedUser.toLowerCase();
+    const user = db.prepare(`
+      SELECT * FROM users
+      WHERE LOWER(username) = ? OR LOWER(email) = ?
+    `).get(loweredUser, loweredUser);
     
     if (!user || !user.password_hash) {
       return res.status(401).json({ error: 'Invalid username or password' });
@@ -142,7 +153,16 @@ router.post('/login', loginLimiter, (req, res) => {
 // We verify it and create/update the user in our DB.
 router.post('/microsoft', loginLimiter, async (req, res) => {
   try {
-    const { idToken, name: fallbackName, email: fallbackEmail, devSecret } = req.body;
+    const {
+      idToken,
+      fallbackName,
+      fallbackEmail,
+      name: bodyName,
+      email: bodyEmail,
+      devSecret
+    } = req.body;
+    const effectiveFallbackName = fallbackName || bodyName;
+    const effectiveFallbackEmail = fallbackEmail || bodyEmail;
     let profile;
 
     if (idToken) {
@@ -151,11 +171,11 @@ router.post('/microsoft', loginLimiter, async (req, res) => {
       if (DEV_MS_LOGIN_SECRET && !safeSecretEquals(DEV_MS_LOGIN_SECRET, devSecret)) {
         return res.status(401).json({ error: 'Invalid development login secret' });
       }
-      if (!fallbackName || fallbackName.trim().length < 2) {
+      if (!effectiveFallbackName || effectiveFallbackName.trim().length < 2) {
         return res.status(400).json({ error: 'Name is required for development Microsoft login' });
       }
-      const safeName = fallbackName.trim();
-      const safeEmail = (fallbackEmail || '').trim();
+      const safeName = effectiveFallbackName.trim();
+      const safeEmail = (effectiveFallbackEmail || '').trim();
       const devIdentitySeed = JSON.stringify([safeName.toLowerCase(), safeEmail.toLowerCase()]);
       const devMsId = `dev_${crypto.createHash('sha256').update(devIdentitySeed).digest('hex').slice(0, 24)}`;
       profile = { msId: devMsId, name: safeName, email: safeEmail };
