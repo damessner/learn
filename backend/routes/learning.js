@@ -9,6 +9,7 @@ router.use(requireAuth);
 const SKILL_PASS_RATIO = Number.isFinite(Number(process.env.SKILL_PASS_RATIO))
   ? Math.max(0.3, Math.min(0.95, Number(process.env.SKILL_PASS_RATIO)))
   : 0.65;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function parseJson(value, fallback = {}) {
   try {
@@ -176,10 +177,10 @@ router.get('/student/gamification', (req, res) => {
   expected.setHours(0, 0, 0, 0);
   for (const row of streakRows) {
     const day = new Date(`${row.d}T00:00:00`);
-    const delta = Math.round((expected - day) / (24 * 60 * 60 * 1000));
+    const delta = Math.round((expected - day) / MS_PER_DAY);
     if (delta === 0) {
       streak += 1;
-      expected = new Date(expected.getTime() - 24 * 60 * 60 * 1000);
+      expected = new Date(expected.getTime() - MS_PER_DAY);
     } else if (delta === 1 && streak === 0) {
       expected = day;
     } else {

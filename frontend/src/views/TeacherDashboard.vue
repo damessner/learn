@@ -29,7 +29,7 @@
       </div>
       <div class="insight-card card">
         <h3>📉 Lowest Performing Subject</h3>
-        <p class="insight-value">{{ teacherAnalytics?.subjectPerformance?.[0]?.subject || 'N/A' }}</p>
+        <p class="insight-value">{{ lowestPerformingSubject }}</p>
       </div>
     </div>
 
@@ -1083,6 +1083,10 @@ const filteredUsers = computed(() => {
            (usr.username || '').toLowerCase().includes(query) ||
            (usr.email || '').toLowerCase().includes(query)
   })
+})
+const lowestPerformingSubject = computed(() => {
+  const list = teacherAnalytics.value?.subjectPerformance
+  return Array.isArray(list) && list.length > 0 ? list[0].subject : 'N/A'
 })
 
 const showAssignModal = ref(false)

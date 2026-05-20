@@ -14,9 +14,9 @@
       aria-label="Short answer response"
     />
     <div v-if="feedback?.aiFeedback" class="feedback-box">
-      <p><strong>Grammar:</strong> {{ feedback.aiFeedback.grammar }}</p>
-      <p><strong>Clarity:</strong> {{ feedback.aiFeedback.clarity }}</p>
-      <p><strong>Key points:</strong> {{ feedback.aiFeedback.keyPoints }}</p>
+      <p><strong>Punctuation signal:</strong> {{ feedback.aiFeedback.automatedPunctuationSignal }}</p>
+      <p><strong>Length signal:</strong> {{ feedback.aiFeedback.automatedLengthSignal }}</p>
+      <p><strong>Key points:</strong> {{ feedback.aiFeedback.keyPointsCoverage }}</p>
     </div>
   </div>
 </template>

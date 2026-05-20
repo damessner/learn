@@ -146,8 +146,11 @@ const isSubmitted = ref(false)
 const feedbackSummary = ref(null)
 const showReview = ref(false)
 const preferredLanguage = ref(localStorage.getItem('preferredLanguage') || 'en-US')
-const storedReadAloud = localStorage.getItem('readAloudEnabled')
-const readAloudEnabled = ref(storedReadAloud === null ? true : storedReadAloud === 'true')
+const parseStoredBoolean = (value, fallback = false) => {
+  if (value === null || value === undefined) return fallback
+  return value === 'true'
+}
+const readAloudEnabled = ref(parseStoredBoolean(localStorage.getItem('readAloudEnabled'), true))
 const hintLevel = ref({})
 
 const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
@@ -267,7 +270,7 @@ const autoSave = async () => {
   const token = localStorage.getItem('token')
   const assignmentId = route.params.id
   try {
-    const payload = { answers: answers.value, savedOfflineAt: new Date().toISOString() }
+    const payload = { answers: answers.value, saveAttemptedAt: new Date().toISOString() }
     const response = await fetch(`${API_BASE}/submissions/assignment/${assignmentId}/save`, {
       method: 'POST',
       headers: {
@@ -278,7 +281,7 @@ const autoSave = async () => {
     })
     if (!response.ok) throw new Error('autosave failed')
   } catch (err) {
-    if (!navigator.onLine || err instanceof TypeError) {
+    if (!navigator.onLine) {
       queueOfflineSave(assignmentId, answers.value)
     }
   } finally {

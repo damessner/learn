@@ -5,6 +5,7 @@ const { requireAuth, requireRole } = require('./auth');
 
 const router = express.Router();
 const MIN_SHORT_ANSWER_LENGTH = 20;
+const CLARITY_LENGTH_TARGET = 30;
 
 function ensureGuestAssignmentAccess(req, res) {
   if (req.user.isGuest && String(req.user.assignmentId) !== String(req.params.assignmentId)) {
@@ -276,9 +277,9 @@ function scoreAnswers(blocks, answers) {
         score += earned;
 
         const aiFeedback = {
-          grammar: /[.!?]$/.test(studentText) ? 'Good sentence ending and structure.' : 'Try ending full thoughts with punctuation.',
-          clarity: studentText.length >= 30 ? 'Response is sufficiently detailed.' : 'Add more detail to improve clarity.',
-          keyPoints: keywords.length === 0 ? 'No keyword target configured.' : `${keywordHits}/${keywords.length} expected key points covered.`
+          automatedPunctuationSignal: /[.!?]$/.test(studentText) ? 'Ends with punctuation.' : 'Add punctuation at the end of your response.',
+          automatedLengthSignal: studentText.length >= CLARITY_LENGTH_TARGET ? 'Response length is detailed enough.' : 'Expand your response with more detail.',
+          keyPointsCoverage: keywords.length === 0 ? 'No keyword target configured.' : `${keywordHits}/${keywords.length} expected key points covered.`
         };
 
         feedback[block.id] = {
