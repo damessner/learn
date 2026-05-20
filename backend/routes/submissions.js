@@ -122,7 +122,7 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
       const newPct = maxScore > 0 ? score / maxScore : 0;
       if (existingPct >= newPct) {
         finalScore = existing.score || 0;
-        finalMaxScore = existing.max_score || maxScore;
+        finalMaxScore = existing.max_score;
         finalAnswers = JSON.parse(existing.answers || '{}');
       }
     }
@@ -268,9 +268,7 @@ function scoreAnswers(blocks, answers) {
         const sampleAnswer = (block.sample_answer || '').toLowerCase().trim();
         const studentText = String(studentAnswer || '').trim();
         const studentLower = studentText.toLowerCase();
-        const keywords = Array.isArray(block.keywords)
-          ? block.keywords.map(k => String(k).toLowerCase()).filter(Boolean)
-          : sampleAnswer.split(/\W+/).filter(w => w.length > 4).slice(0, 5);
+        const keywords = buildShortAnswerKeywords(block, sampleAnswer);
         const keywordHits = keywords.filter(k => studentLower.includes(k)).length;
         const coverage = keywords.length > 0 ? keywordHits / keywords.length : (studentText.length >= 20 ? 1 : 0);
         const earned = Math.round(Math.max(0, Math.min(1, coverage)) * blockPoints);
@@ -311,6 +309,13 @@ function isAcceptableVariant(student, correct) {
     if (student[i] === correct[i]) matches++;
   }
   return matches / correct.length >= 0.85;
+}
+
+function buildShortAnswerKeywords(block, sampleAnswer = '') {
+  if (Array.isArray(block.keywords) && block.keywords.length > 0) {
+    return block.keywords.map(k => String(k).toLowerCase()).filter(Boolean);
+  }
+  return sampleAnswer.split(/\W+/).filter(w => w.length > 4).slice(0, 5);
 }
 
 // ─── Teacher Feedback on Submission ──────────────────────────────────────────

@@ -152,6 +152,7 @@ const hintLevel = ref({})
 const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 let autosaveTimer = null
 const OFFLINE_SAVE_KEY = 'learnflow-offline-submission-saves'
+const MAX_OFFLINE_QUEUE_SIZE = 15
 
 const printWorksheet = () => window.print()
 const toggleReadAloud = () => {
@@ -245,7 +246,6 @@ const fetchWorksheet = async () => {
 }
 
 onMounted(() => {
-  localStorage.setItem('preferredLanguage', preferredLanguage.value)
   fetchWorksheet().then(() => {
     if (!isSubmitted.value) {
       // Start auto-save loop
@@ -277,7 +277,9 @@ const autoSave = async () => {
     })
     if (!response.ok) throw new Error('autosave failed')
   } catch (err) {
-    queueOfflineSave(assignmentId, answers.value)
+    if (!navigator.onLine || err instanceof TypeError) {
+      queueOfflineSave(assignmentId, answers.value)
+    }
   } finally {
     saving.value = false
   }
@@ -291,7 +293,7 @@ const queueOfflineSave = (assignmentId, payloadAnswers) => {
     token: localStorage.getItem('token'),
     queuedAt: new Date().toISOString()
   })
-  localStorage.setItem(OFFLINE_SAVE_KEY, JSON.stringify(queue.slice(-15)))
+  localStorage.setItem(OFFLINE_SAVE_KEY, JSON.stringify(queue.slice(-MAX_OFFLINE_QUEUE_SIZE)))
 }
 
 const flushOfflineSaves = async () => {
@@ -320,6 +322,10 @@ const flushOfflineSaves = async () => {
 watch(answers, () => {
   // We can let the interval handle auto-saving to prevent server hammering.
 }, { deep: true })
+
+watch(preferredLanguage, (lang) => {
+  localStorage.setItem('preferredLanguage', lang)
+})
 
 const submitWorksheet = async () => {
   if (!confirm('Are you sure you want to submit your worksheet? You cannot make changes afterwards.')) return

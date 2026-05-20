@@ -173,7 +173,7 @@ router.get('/student/gamification', (req, res) => {
   let expected = new Date();
   expected.setHours(0, 0, 0, 0);
   for (const row of streakRows) {
-    const day = new Date(row.d + 'T00:00:00');
+    const day = new Date(`${row.d}T00:00:00Z`);
     const delta = Math.round((expected - day) / (24 * 60 * 60 * 1000));
     if (delta === 0) {
       streak += 1;
@@ -210,7 +210,10 @@ router.post('/student/peer-review/:assignmentId', (req, res) => {
   if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
   const { reviewee_id, rating, comments } = req.body || {};
   if (!reviewee_id) return res.status(400).json({ error: 'reviewee_id is required' });
-  const safeRating = Math.max(1, Math.min(5, Number(rating) || 3));
+  if (!Number.isInteger(Number(rating)) || Number(rating) < 1 || Number(rating) > 5) {
+    return res.status(400).json({ error: 'rating must be an integer between 1 and 5' });
+  }
+  const safeRating = Number(rating);
   const db = getDB();
   const id = uuidv4();
   db.prepare(`
@@ -301,13 +304,13 @@ router.get('/teacher/analytics', (req, res) => {
   `).get(req.user.userId, req.user.userId, req.user.userId, req.user.userId);
 
   const subjectPerformance = db.prepare(`
-    SELECT w.subject, ROUND(AVG(CASE WHEN s.max_score > 0 THEN CAST(s.score AS REAL)/s.max_score * 100 END), 1) as avg_percent
+    SELECT w.subject, ROUND(AVG(CASE WHEN s.max_score > 0 THEN CAST(s.score AS REAL)/s.max_score * 100 END), 1) as avg_percentage
     FROM submissions s
     JOIN assignments a ON a.id = s.assignment_id
     JOIN worksheets w ON w.id = a.worksheet_id
     WHERE a.created_by = ? AND s.submitted_at IS NOT NULL
     GROUP BY w.subject
-    ORDER BY avg_percent ASC
+    ORDER BY avg_percentage ASC
   `).all(req.user.userId);
 
   res.json({ overview, subjectPerformance });

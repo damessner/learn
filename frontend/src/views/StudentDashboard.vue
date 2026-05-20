@@ -65,7 +65,7 @@
       <div class="intel-card card">
         <h3>📅 Study Planner</h3>
         <p class="muted">{{ plannerPendingCount }} pending tasks</p>
-        <button class="btn btn-secondary btn-sm" @click="addQuickPlannerTask">+ Quick task</button>
+        <button class="btn btn-secondary btn-sm" @click="showQuickPlannerModal = true">+ Quick task</button>
       </div>
       <div class="intel-card card">
         <h3>🏅 Gamification</h3>
@@ -188,6 +188,24 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showQuickPlannerModal" class="modal-overlay" @click.self="showQuickPlannerModal = false">
+      <div class="modal-box">
+        <h3>Add planner task</h3>
+        <div class="form-group">
+          <input
+            type="text"
+            v-model="quickPlannerTitle"
+            placeholder="Task title"
+            aria-label="Planner task title"
+          />
+        </div>
+        <div class="modal-actions">
+          <button @click="showQuickPlannerModal = false" class="btn btn-secondary">Cancel</button>
+          <button @click="addQuickPlannerTask" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -208,6 +226,8 @@ const masteryMap = ref([])
 const spacedQueue = ref([])
 const plannerItems = ref([])
 const gamification = ref({})
+const showQuickPlannerModal = ref(false)
+const quickPlannerTitle = ref('')
 const showJoinModal = ref(false)
 const joinCode = ref('')
 const joinError = ref('')
@@ -329,7 +349,7 @@ const plannerPendingCount = computed(() => plannerItems.value.filter(item => ite
 const unlockedBadges = computed(() => (gamification.value.badges || []).filter(b => b.unlocked).length)
 
 const addQuickPlannerTask = async () => {
-  const title = prompt('Quick planner task:')
+  const title = quickPlannerTitle.value.trim()
   if (!title) return
   const token = localStorage.getItem('token')
   const resp = await fetch(`${API_BASE}/learning/student/planner`, {
@@ -340,6 +360,8 @@ const addQuickPlannerTask = async () => {
   if (resp.ok) {
     plannerItems.value = [await resp.json(), ...plannerItems.value]
     showToast('Planner task added', 'success')
+    quickPlannerTitle.value = ''
+    showQuickPlannerModal.value = false
   }
 }
 </script>
