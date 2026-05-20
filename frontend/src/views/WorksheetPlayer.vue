@@ -154,17 +154,15 @@ const fetchWorksheet = async () => {
       answers.value = { ...initialAnswers, ...submission.answers }
       if (submission.submitted_at) {
         isSubmitted.value = true
-        // Fetch graded result feedback
-        const gradeResp = await fetch(`${API_BASE}/submissions/assignment/${assignmentId}/submit`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ answers: answers.value })
-        })
-        const data = await gradeResp.json()
-        feedbackSummary.value = data
+        // Build summary from stored submission data (score/max_score are already persisted)
+        const maxScore = submission.max_score ?? 0
+        const score = submission.score ?? 0
+        feedbackSummary.value = {
+          score,
+          maxScore,
+          percentage: maxScore > 0 ? Math.round((score / maxScore) * 100) : 0,
+          feedback: {}
+        }
       }
     } else {
       answers.value = initialAnswers

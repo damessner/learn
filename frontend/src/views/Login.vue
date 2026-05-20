@@ -333,7 +333,7 @@ const loginAsGuest = async () => {
   padding: 0 10px;
 }
 
-.guest-form {
+.guest-form, .local-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
