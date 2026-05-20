@@ -32,6 +32,20 @@ NEXT_ID=$(pvesh get /cluster/nextid)
 read -p "Enter Container ID [Default: $NEXT_ID]: " CTID
 CTID=${CTID:-$NEXT_ID}
 
+# Check if container already exists
+if pct status "$CTID" >/dev/null 2>&1; then
+  echo -e "${YELLOW}Warning: Container $CTID already exists.${NC}"
+  read -p "Do you want to stop and destroy container $CTID first? [y/N]: " CONFIRM_DESTROY
+  if [[ "$CONFIRM_DESTROY" =~ ^[Yy]$ ]]; then
+    echo -e "${BLUE}Stopping and destroying container $CTID...${NC}"
+    pct stop "$CTID" || true
+    pct destroy "$CTID"
+  else
+    echo -e "${RED}Error: Container $CTID already exists. Deployment aborted.${NC}"
+    exit 1
+  fi
+fi
+
 # 2. Hostname
 read -p "Enter Hostname [Default: learnflow]: " HOSTNAME
 HOSTNAME=${HOSTNAME:-learnflow}

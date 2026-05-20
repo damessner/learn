@@ -11,9 +11,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
-        DB_PATH: './db/learnflow.db',
-        JWT_SECRET: 'school-live-secret-key-change-me',
-        BASE_URL: 'http://localhost'
+        DB_PATH: './db/learnflow.db'
       }
     }
   ]

@@ -108,17 +108,19 @@ If you have configured local SSH access to your Proxmox server (`pve`), you can 
 
 ---
 
-### Option B: Direct Proxmox Hypervisor Script
-This script is run directly on the Proxmox VE host node. It automates container creation, templates, networking, repository cloning, and invokes the setup process inside the container.
+### Option B: Direct Proxmox Hypervisor Script (Recommended for Clean Installs)
+This script is run directly on your Proxmox VE host node. It automates template updates, downloads Debian 12 standard, prompts you for container details, builds the network bridge, clones the repo, and runs the entire setup inside the LXC.
 
 1. SSH into your Proxmox VE host (as root).
-2. Download and run the helper script:
+2. Run the one-liner command:
    ```bash
-   curl -sSL https://raw.githubusercontent.com/damessner/learn/main/deployment/create-lxc.sh -o create-lxc.sh
-   chmod +x create-lxc.sh
-   sudo ./create-lxc.sh
+   bash -c "$(curl -sSL https://raw.githubusercontent.com/damessner/learn/main/deployment/create-lxc.sh)"
    ```
-3. Follow the prompts (defaults are configured for quick deployment). The script will automatically output your container's IP address.
+3. Follow the prompts (or press `Enter` to accept the defaults). The script will:
+   - Check if the chosen Container ID exists and prompt you if it needs to be recreated.
+   - Automatically configure a secure random 32-byte hex `JWT_SECRET`.
+   - Automatically discover the container IP and bind it to the `BASE_URL` env variable.
+   - Output the LAN IP address once complete.
 
 ---
 
@@ -140,6 +142,7 @@ If you prefer to configure your LXC container manually:
    cd /opt/learnflow
    sudo bash deployment/setup-lxc.sh
    ```
+   *(Note: The setup script will automatically handle `.env` creation, dynamic LAN IP binding, Node.js installation, Nginx site config, and PM2 background manager setup.)*
 
 ---
 

@@ -66,6 +66,24 @@ chown -R www-data:www-data /var/www/learnflow
 # Setup Backend
 echo -e "${BLUE}[5/7] Installing backend dependencies & initializing database...${NC}"
 cd /var/www/learnflow/backend
+
+# Create .env from .env.example if it doesn't exist
+if [ ! -f .env ]; then
+  echo -e "${BLUE}Generating backend .env configuration...${NC}"
+  cp .env.example .env
+  
+  # Generate secure random JWT_SECRET
+  SECURE_JWT=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+  sed -i "s/JWT_SECRET=change_this_to_a_long_random_string_minimum_32_chars/JWT_SECRET=$SECURE_JWT/" .env
+  
+  # Detect container IP to set BASE_URL
+  IP_ADDR=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1 || echo "localhost")
+  sed -i "s|BASE_URL=https://your-school-server.com|BASE_URL=http://$IP_ADDR|" .env
+  
+  chown www-data:www-data .env
+  echo -e "${GREEN}✓ Generated secure .env file with container IP ($IP_ADDR) and random JWT_SECRET.${NC}"
+fi
+
 # Install production dependencies (avoiding devDependencies)
 npm install --production --unsafe-perm
 

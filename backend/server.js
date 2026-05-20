@@ -22,19 +22,43 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// CORS — allow the Vue dev server and production frontend
-const allowedOrigins = [
-  process.env.BASE_URL,
-  'http://localhost:5173',
-  'http://localhost:4173',
-];
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
-  },
-  credentials: true
-}));
+// CORS configuration
+const corsOptionsDelegate = (req, callback) => {
+  const origin = req.header('Origin');
+  const host = req.header('Host');
+  
+  const allowedOrigins = [
+    process.env.BASE_URL,
+    'http://localhost:5173',
+    'http://localhost:4173',
+  ];
+  
+  let isAllowed = false;
+  if (!origin) {
+    isAllowed = true;
+  } else if (allowedOrigins.includes(origin)) {
+    isAllowed = true;
+  } else {
+    // In production, Nginx proxies the frontend and backend on the same host & port.
+    // If the Origin's host matches the request's Host header, it is same-origin.
+    try {
+      const originUrl = new URL(origin);
+      if (originUrl.host === host) {
+        isAllowed = true;
+      }
+    } catch (e) {
+      isAllowed = false;
+    }
+  }
+  
+  if (isAllowed) {
+    callback(null, { origin: true, credentials: true });
+  } else {
+    callback(new Error('Not allowed by CORS'));
+  }
+};
+
+app.use(cors(corsOptionsDelegate));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
