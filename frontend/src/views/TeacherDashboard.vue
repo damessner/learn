@@ -1928,7 +1928,7 @@ const postAnnouncement = async () => {
 const deleteAnnouncement = async (annId) => {
   const token = localStorage.getItem('token')
   try {
-    const res = await fetch(`${API_BASE}/classes/announcements/${annId}`, {
+    const res = await fetch(`${API_BASE}/classes/${selectedClassId.value}/announcements/${annId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` }
     })

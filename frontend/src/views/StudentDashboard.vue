@@ -247,9 +247,11 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
+const MILLISECONDS_PER_HOUR = 3_600_000
+
 const dueInHours = (dateStr) => {
   if (!dateStr) return Infinity
-  return (new Date(dateStr) - Date.now()) / 36e5
+  return (new Date(dateStr) - Date.now()) / MILLISECONDS_PER_HOUR
 }
 
 const isOverdue = (dateStr) => {

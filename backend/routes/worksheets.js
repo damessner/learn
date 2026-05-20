@@ -240,7 +240,7 @@ router.put('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
     WHERE id = ?
   `).run(
     title, description, subject, grade_level,
-    content ? JSON.stringify(content) : null,
+    content !== undefined ? JSON.stringify(content) : null,
     content !== undefined ? totalPoints : null,
     is_published !== undefined ? (is_published ? 1 : 0) : null,
     tags !== undefined ? (tags || '') : null,
