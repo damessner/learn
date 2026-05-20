@@ -85,6 +85,8 @@ if [ ! -f .env ]; then
 fi
 
 # Install production dependencies (avoiding devDependencies)
+# Clean up any existing node_modules to avoid cross-platform binary incompatibilities (e.g. Windows vs Linux ELF)
+rm -rf node_modules
 npm install --production --unsafe-perm
 
 # Initialize Database & Seed Demo Data
@@ -95,6 +97,7 @@ node db/seed.js
 # Setup Frontend
 echo -e "${BLUE}[6/7] Installing frontend dependencies & building static assets...${NC}"
 cd /var/www/learnflow/frontend
+rm -rf node_modules
 npm install
 npm run build
 
