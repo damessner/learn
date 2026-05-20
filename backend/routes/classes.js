@@ -92,6 +92,11 @@ router.get('/', (req, res) => {
   }
 });
 
+// ─── Utility: generate a random uppercase 6-char alphanumeric class code ───────
+function generateClassCode() {
+  return Math.random().toString(36).substring(2).padEnd(6, '0').substring(0, 6).toUpperCase();
+}
+
 // ─── Create Class ─────────────────────────────────────────────────────────────
 router.post('/', (req, res) => {
   const { name } = req.body;
@@ -102,13 +107,11 @@ router.post('/', (req, res) => {
   try {
     const db = getDB();
     const id = uuidv4();
-    // Generate a unique 6-char class code, padded to ensure full length
-    const genCode = () => Math.random().toString(36).substring(2).padEnd(6, '0').substring(0, 6).toUpperCase();
-    let classCode = genCode();
+    let classCode = generateClassCode();
     let attempts = 0;
     while (db.prepare('SELECT 1 FROM classes WHERE class_code = ?').get(classCode)) {
       if (++attempts > 10) throw new Error('Could not generate a unique class code. Please try again.');
-      classCode = genCode();
+      classCode = generateClassCode();
     }
     db.prepare(`
       INSERT INTO classes (id, name, created_by, class_code)
