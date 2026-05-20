@@ -24,7 +24,7 @@ fi
 if [ -f /etc/debian_version ]; then
   echo -e "${BLUE}[1/7] Updating system package repositories...${NC}"
   apt-get update -y
-  apt-get install -y curl git build-essential sqlite3 nginx
+  apt-get install -y curl git build-essential python3 sqlite3 nginx
 else
   echo -e "${RED}Error: This script is designed for Debian/Ubuntu-based LXC containers.${NC}"
   exit 1

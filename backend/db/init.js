@@ -122,10 +122,38 @@ async function initDB() {
       value TEXT NOT NULL
     );
 
+    -- Courses (a collection of worksheets)
+    CREATE TABLE IF NOT EXISTS courses (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Course Worksheets (maps worksheets to courses with order)
+    CREATE TABLE IF NOT EXISTS course_worksheets (
+      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      worksheet_id TEXT NOT NULL REFERENCES worksheets(id) ON DELETE CASCADE,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (course_id, worksheet_id)
+    );
+
+    -- Course Assignments (courses assigned to classes)
+    CREATE TABLE IF NOT EXISTS course_assignments (
+      id TEXT PRIMARY KEY,
+      course_id TEXT NOT NULL REFERENCES courses(id),
+      class_id TEXT NOT NULL REFERENCES classes(id),
+      due_date TEXT,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_assignments_worksheet_id ON assignments(worksheet_id);
     CREATE INDEX IF NOT EXISTS idx_assignments_class_id ON assignments(class_id);
     CREATE INDEX IF NOT EXISTS idx_submissions_assignment_submitted_at ON submissions(assignment_id, submitted_at);
     CREATE INDEX IF NOT EXISTS idx_class_students_student_id ON class_students(student_id);
+    CREATE INDEX IF NOT EXISTS idx_course_assignments_class_id ON course_assignments(class_id);
   `);
 
   // Migrate existing databases to have username/password_hash if they were created before
@@ -149,6 +177,16 @@ async function initDB() {
   database.prepare(`
     INSERT OR IGNORE INTO settings (key, value)
     VALUES ('auth_mode', 'local')
+  `).run();
+
+  database.prepare(`
+    INSERT OR IGNORE INTO settings (key, value)
+    VALUES ('ollama_base_url', 'http://localhost:11434')
+  `).run();
+
+  database.prepare(`
+    INSERT OR IGNORE INTO settings (key, value)
+    VALUES ('ollama_model', 'llama3.1')
   `).run();
 
   // Seed a default admin/teacher if none exists

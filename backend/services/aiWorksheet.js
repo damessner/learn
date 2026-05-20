@@ -1,9 +1,19 @@
+const { getDB } = require('../db/init');
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1';
 const AI_TIMEOUT_MS = parseInt(process.env.AI_TIMEOUT_MS || '30000', 10);
 
+function getOllamaSettings() {
+  const db = getDB();
+  const urlRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('ollama_base_url');
+  const modelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('ollama_model');
+  
+  return {
+    baseUrl: (urlRow && urlRow.value) || process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+    model: (modelRow && modelRow.value) || process.env.OLLAMA_MODEL || 'llama3.1'
+  };
+}
 const ALLOWED_BLOCK_TYPES = new Set([
   'text',
   'image',
@@ -181,12 +191,13 @@ async function callGemini(prompt) {
 }
 
 async function callOllama(prompt) {
+  const { baseUrl, model } = getOllamaSettings();
   const fullPrompt = `${SYSTEM_PROMPT}\n\nUser request:\n${prompt}\n\nReturn only JSON.`;
-  const resp = await fetchWithTimeout(`${OLLAMA_BASE_URL.replace(/\/$/, '')}/api/generate`, {
+  const resp = await fetchWithTimeout(`${baseUrl.replace(/\/$/, '')}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: OLLAMA_MODEL,
+      model: model,
       prompt: fullPrompt,
       stream: false,
       format: 'json',

@@ -7,6 +7,9 @@
       </div>
       <div class="header-right">
         <button @click="saveWorksheet(false)" :disabled="saving" class="btn btn-secondary">Save Draft</button>
+        <router-link v-if="isEditing" :to="`/teacher/preview/${route.params.id}`" class="btn btn-secondary" target="_blank">
+          👀 Preview
+        </router-link>
         <button @click="saveWorksheet(true)" :disabled="saving" class="btn btn-primary">Publish Worksheet 🚀</button>
       </div>
     </header>
