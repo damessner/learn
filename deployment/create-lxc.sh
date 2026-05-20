@@ -118,6 +118,7 @@ pct create "$CTID" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE_FILE}" \
   -net0 "$NET_CFG" \
   -onboot 1 \
   -unprivileged 1 \
+  -password "LearnFlow" \
   -features nesting=1
 
 echo -e "${GREEN}✓ Container $CTID created successfully.${NC}"

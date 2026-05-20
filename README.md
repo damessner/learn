@@ -120,6 +120,7 @@ This script is run directly on your Proxmox VE host node. It automates template 
    ```
 3. Follow the prompts (or press `Enter` to accept the defaults). The script will:
    - Check if the chosen Container ID exists and prompt you if it needs to be recreated.
+   - Set the default container root login password to **`LearnFlow`**.
    - Automatically configure a secure random 32-byte hex `JWT_SECRET`.
    - Automatically discover the container IP and bind it to the `BASE_URL` env variable.
    - Output the LAN IP address once complete.

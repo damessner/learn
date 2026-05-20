@@ -162,3 +162,7 @@ async function initDB() {
 }
 
 module.exports = { getDB, initDB };
+
+if (require.main === module) {
+  initDB();
+}
