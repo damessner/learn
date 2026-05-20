@@ -7,9 +7,9 @@
       </div>
       <div class="header-right">
         <button @click="saveWorksheet(false)" :disabled="saving" class="btn btn-secondary">Save Draft</button>
-        <router-link v-if="isEditing" :to="`/teacher/preview/${route.params.id}`" class="btn btn-secondary" target="_blank">
-          👀 Preview
-        </router-link>
+        <button @click="openLivePreview" class="btn btn-secondary">
+          👀 Live Preview
+        </button>
         <button @click="saveWorksheet(true)" :disabled="saving" class="btn btn-primary">Publish Worksheet 🚀</button>
       </div>
     </header>
@@ -292,12 +292,96 @@
         </div>
       </div>
     </div>
+
+    <!-- Live Preview Modal Overlay -->
+    <div v-if="showLivePreview" class="preview-modal-overlay">
+      <div class="preview-modal-card">
+        <header class="modal-header">
+          <h2>👀 Live Worksheet Preview</h2>
+          <button @click="showLivePreview = false" class="btn-close">&times;</button>
+        </header>
+
+        <div class="preview-scroll-container">
+          <!-- Sticky Info Bar -->
+          <div class="live-sticky-bar glass">
+            <div class="live-info">
+              <h3>{{ sheet.title || 'Untitled Worksheet' }} <span class="badge badge-warning" style="margin-left: 8px;">Draft Preview</span></h3>
+              <span class="live-sub">Interact and grade this worksheet locally without saving first.</span>
+            </div>
+            <div class="live-actions">
+              <span class="live-points">{{ calculatedTotalPoints }} Points Max</span>
+              <button v-if="!previewIsSubmitted" @click="submitLocalPreview" class="btn btn-primary">
+                Grade Preview 🚀
+              </button>
+              <button v-else @click="resetLocalPreview" class="btn btn-secondary">
+                Reset Preview
+              </button>
+              <button @click="showLivePreview = false" class="btn btn-secondary" style="margin-left: 8px;">
+                Exit Preview
+              </button>
+            </div>
+          </div>
+
+          <!-- Graded Result Card -->
+          <div v-if="previewIsSubmitted && previewFeedbackSummary" class="live-result-summary-card card glass">
+            <div class="summary-emoji">🏆</div>
+            <h3>Preview Graded!</h3>
+            <p class="score-summary">
+              You scored <strong>{{ previewFeedbackSummary.score }}</strong> out of <strong>{{ previewFeedbackSummary.maxScore }}</strong> points 
+              ({{ previewFeedbackSummary.percentage }}%).
+            </p>
+            <div class="live-progress-bar-large">
+              <div class="live-progress-fill" :style="{ width: `${previewFeedbackSummary.percentage}%` }"></div>
+            </div>
+            <p class="review-note">Check the color-coded feedback below to review correct/incorrect answers.</p>
+          </div>
+
+          <!-- Worksheet Body -->
+          <div class="live-preview-body">
+            <div 
+              v-for="(block, idx) in previewBlocks" 
+              :key="block.id || idx"
+              class="live-block-container"
+            >
+              <!-- Dynamic Component Mapping -->
+              <component 
+                v-if="getExerciseComponent(block.type)"
+                :is="getExerciseComponent(block.type)"
+                v-model="previewAnswers[block.id]"
+                :id="block.id"
+                v-bind="block"
+                :disabled="previewIsSubmitted"
+                :feedback="previewFeedbackSummary?.feedback?.[block.id]"
+                :correctAnswers="getCorrectAnswerData(block)"
+                :correctAnswer="getSingleCorrectAnswerData(block)"
+                :worksheetTitle="sheet.title"
+              />
+
+              <!-- Static Text Block -->
+              <div v-else-if="block.type === 'text'" class="live-text-card card">{{ block.content || '' }}</div>
+              
+              <!-- Static Media/Audio Blocks -->
+              <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
+              <AudioBlock v-else-if="block.type === 'audio'" v-bind="block" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import GapFill from '../components/exercises/GapFill.vue'
+import DragDrop from '../components/exercises/DragDrop.vue'
+import MultipleChoice from '../components/exercises/MultipleChoice.vue'
+import SingleChoice from '../components/exercises/SingleChoice.vue'
+import Matching from '../components/exercises/Matching.vue'
+import MediaBlock from '../components/exercises/MediaBlock.vue'
+import AudioBlock from '../components/exercises/AudioBlock.vue'
+import Vocabulary from '../components/exercises/Vocabulary.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -590,6 +674,246 @@ const saveWorksheet = async (publish = false) => {
   } finally {
     saving.value = false
   }
+}
+
+// --- Live Preview Functionality ---
+const showLivePreview = ref(false)
+const previewAnswers = ref({})
+const previewIsSubmitted = ref(false)
+const previewFeedbackSummary = ref(null)
+
+const calculatedTotalPoints = computed(() => {
+  return sheet.value.blocks.reduce((sum, b) => sum + (Number(b.points) || 0), 0)
+})
+
+const previewBlocks = computed(() => {
+  return sheet.value.blocks.map(block => {
+    const stripped = JSON.parse(JSON.stringify(block))
+    if (block.type === 'gap_fill') {
+      stripped.template_display = (block.template || '').replace(/\{[^}]+\}/g, '____')
+    }
+    if (block.type === 'matching') {
+      const pairs = block.pairs || []
+      stripped.left = pairs.map(p => p[0])
+      // Shuffle the right side for realistic preview
+      stripped.right = pairs.map(p => p[1]).sort(() => Math.random() - 0.5)
+    }
+    if (block.type === 'drag_drop') {
+      stripped.items = [...(block.items || [])].sort(() => Math.random() - 0.5)
+    }
+    if (block.type === 'vocabulary') {
+      const pairs = block.pairs || []
+      stripped.words = pairs.map((pair, pIdx) => {
+        const isL2R = block.direction === 'l2r' || (block.direction === 'mixed' && pIdx % 2 === 0)
+        return {
+          id: pIdx,
+          clue: isL2R ? pair.l : pair.r,
+          answer: isL2R ? pair.r : pair.l,
+          promptLang: isL2R ? 'left' : 'right'
+        }
+      })
+    }
+    return stripped
+  })
+})
+
+const openLivePreview = () => {
+  const initialAnswers = {}
+  sheet.value.blocks.forEach(block => {
+    if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary'].includes(block.type)) {
+      if (block.type === 'multiple_choice') {
+        initialAnswers[block.id] = []
+      } else if (['drag_drop', 'matching'].includes(block.type)) {
+        initialAnswers[block.id] = {}
+      } else if (block.type === 'vocabulary') {
+        initialAnswers[block.id] = { completed: false, answersMap: {} }
+      } else if (block.type === 'gap_fill') {
+        initialAnswers[block.id] = []
+      } else {
+        initialAnswers[block.id] = null
+      }
+    }
+  })
+  previewAnswers.value = initialAnswers
+  previewIsSubmitted.value = false
+  previewFeedbackSummary.value = null
+  showLivePreview.value = true
+}
+
+const resetLocalPreview = () => {
+  previewIsSubmitted.value = false
+  previewFeedbackSummary.value = null
+  const initialAnswers = {}
+  sheet.value.blocks.forEach(block => {
+    if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary'].includes(block.type)) {
+      if (block.type === 'multiple_choice') {
+        initialAnswers[block.id] = []
+      } else if (['drag_drop', 'matching'].includes(block.type)) {
+        initialAnswers[block.id] = {}
+      } else if (block.type === 'vocabulary') {
+        initialAnswers[block.id] = { completed: false, answersMap: {} }
+      } else if (block.type === 'gap_fill') {
+        initialAnswers[block.id] = []
+      } else {
+        initialAnswers[block.id] = null
+      }
+    }
+  })
+  previewAnswers.value = initialAnswers
+}
+
+const getExerciseComponent = (type) => {
+  switch (type) {
+    case 'gap_fill': return GapFill
+    case 'drag_drop': return DragDrop
+    case 'multiple_choice': return MultipleChoice
+    case 'single_choice': return SingleChoice
+    case 'matching': return Matching
+    case 'vocabulary': return Vocabulary
+    default: return null
+  }
+}
+
+const getCorrectAnswerData = (block) => {
+  if (!previewFeedbackSummary.value || !previewFeedbackSummary.value.feedback) return null
+  const blockFeedback = previewFeedbackSummary.value.feedback[block.id]
+  return blockFeedback?.correctAnswers || null
+}
+
+const getSingleCorrectAnswerData = (block) => {
+  if (!previewFeedbackSummary.value || !previewFeedbackSummary.value.feedback) return null
+  const blockFeedback = previewFeedbackSummary.value.feedback[block.id]
+  return blockFeedback?.correctAnswer !== undefined ? blockFeedback.correctAnswer : null
+}
+
+const submitLocalPreview = () => {
+  let totalScore = 0
+  let totalMaxScore = 0
+  const feedback = {}
+
+  sheet.value.blocks.forEach(block => {
+    if (!['gap_fill', 'drag_drop', 'multiple_choice', 'single_choice', 'matching', 'vocabulary'].includes(block.type)) return
+
+    const pts = block.points || 1
+    totalMaxScore += pts
+    let blockScore = 0
+    let isCorrect = false
+    const blockFeedback = { correct: false }
+
+    const studentAns = previewAnswers.value[block.id]
+
+    if (block.type === 'gap_fill') {
+      const template = block.template || ''
+      const blanks = [...template.matchAll(/\{([^}]+)\}/g)].map(m => m[1])
+      const totalGaps = blanks.length
+      if (totalGaps === 0) {
+        blockScore = pts
+        isCorrect = true
+      } else {
+        let correctCount = 0
+        const ansArr = Array.isArray(studentAns) ? studentAns : []
+        const correctAnswers = []
+        blanks.forEach((correctText, i) => {
+          const ans = (ansArr[i] || '').trim().toLowerCase()
+          if (ans === correctText.trim().toLowerCase()) correctCount++
+          correctAnswers.push(correctText.trim())
+        })
+        blockScore = Math.round((correctCount / totalGaps) * pts)
+        isCorrect = correctCount === totalGaps
+        blockFeedback.correctAnswers = correctAnswers
+      }
+    } else if (block.type === 'drag_drop') {
+      const targets = block.targets || []
+      const correctDict = block.answers || {}
+      const totalTargets = targets.length
+      if (totalTargets === 0) {
+        blockScore = pts
+        isCorrect = true
+      } else {
+        let correctCount = 0
+        const studentDict = studentAns || {}
+        for (let i = 0; i < totalTargets; i++) {
+          if (studentDict[i] === correctDict[i]) correctCount++
+        }
+        blockScore = Math.round((correctCount / totalTargets) * pts)
+        isCorrect = correctCount === totalTargets
+      }
+    } else if (block.type === 'multiple_choice') {
+      const correctArr = Array.isArray(block.correct) ? block.correct : []
+      const studentArr = Array.isArray(studentAns) ? studentAns : []
+      const isExactlySame = correctArr.length === studentArr.length && correctArr.every(v => studentArr.includes(v))
+      if (isExactlySame) {
+        blockScore = pts
+        isCorrect = true
+      }
+      blockFeedback.correctAnswers = correctArr
+    } else if (block.type === 'single_choice') {
+      if (Number(studentAns) === Number(block.correct)) {
+        blockScore = pts
+        isCorrect = true
+      }
+      blockFeedback.correctAnswer = Number(block.correct)
+    } else if (block.type === 'matching') {
+      const pairs = block.pairs || []
+      const totalPairs = pairs.length
+      if (totalPairs === 0) {
+        blockScore = pts
+        isCorrect = true
+      } else {
+        let correctCount = 0
+        const studentDict = studentAns || {}
+        
+        const previewBlock = previewBlocks.value.find(b => b.id === block.id)
+        const leftArr = previewBlock?.left || []
+        const rightArr = previewBlock?.right || []
+
+        pairs.forEach(pair => {
+          const leftText = pair[0]
+          const rightText = pair[1]
+          
+          const leftIdx = leftArr.indexOf(leftText)
+          const studentRightIdx = studentDict[String(leftIdx)]
+          const studentRightText = studentRightIdx !== undefined ? rightArr[studentRightIdx] : null
+
+          if (studentRightText === rightText) {
+            correctCount++
+          }
+        })
+        blockScore = Math.round((correctCount / totalPairs) * pts)
+        isCorrect = correctCount === totalPairs
+      }
+    } else if (block.type === 'vocabulary') {
+      const pairs = block.pairs || []
+      const totalPairs = pairs.length
+      if (totalPairs === 0) {
+        blockScore = pts
+        isCorrect = true
+      } else {
+        let correctCount = 0
+        const ansMap = studentAns?.answersMap || {}
+        pairs.forEach((pair, idx) => {
+          const targetWord = (pair.r || '').trim().toLowerCase()
+          const stWord = (ansMap[idx] || '').trim().toLowerCase()
+          if (stWord === targetWord) correctCount++
+        })
+        blockScore = Math.round((correctCount / totalPairs) * pts)
+        isCorrect = correctCount === totalPairs
+      }
+    }
+
+    blockFeedback.correct = isCorrect
+    blockFeedback.pointsAwarded = blockScore
+    feedback[block.id] = blockFeedback
+    totalScore += blockScore
+  })
+
+  previewFeedbackSummary.value = {
+    score: totalScore,
+    maxScore: totalMaxScore,
+    percentage: totalMaxScore > 0 ? Math.round((totalScore / totalMaxScore) * 100) : 0,
+    feedback
+  }
+  previewIsSubmitted.value = true
 }
 </script>
 
@@ -906,5 +1230,183 @@ const saveWorksheet = async (publish = false) => {
 .vocab-preview-table th {
   background-color: var(--bg-main);
   font-weight: 700;
+}
+
+/* Live Preview Modal Overlay Styles */
+.preview-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.preview-modal-card {
+  width: 100%;
+  max-width: 900px;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.preview-modal-card .modal-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-card);
+}
+
+.preview-modal-card .modal-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+
+.btn-close:hover {
+  color: var(--text-color);
+}
+
+.preview-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.live-sticky-bar {
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  background-color: var(--bg-card);
+}
+
+.live-info h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.live-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.live-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.live-points {
+  font-size: 13px;
+  font-weight: 700;
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+.live-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 40px;
+}
+
+.live-block-container {
+  width: 100%;
+}
+
+.live-text-card {
+  padding: 24px;
+  font-size: 16px;
+  white-space: pre-wrap;
+}
+
+.live-result-summary-card {
+  text-align: center;
+  padding: 24px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--success);
+  margin-bottom: 24px;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.summary-emoji {
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+
+.live-result-summary-card h3 {
+  font-size: 20px;
+  color: var(--success);
+  margin: 0 0 8px 0;
+}
+
+.score-summary {
+  font-size: 15px;
+  margin-bottom: 16px;
+}
+
+.live-progress-bar-large {
+  height: 10px;
+  background-color: var(--border-color);
+  border-radius: 5px;
+  overflow: hidden;
+  max-width: 400px;
+  margin: 0 auto 12px auto;
+}
+
+.live-progress-fill {
+  height: 100%;
+  background-color: var(--success);
+  border-radius: 5px;
+}
+
+.review-note {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 </style>
