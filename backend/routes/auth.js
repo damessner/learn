@@ -11,7 +11,13 @@ const DEV_JWT_SECRET_PLACEHOLDER = 'dev-secret-change-in-production-long-secret-
 const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET_PLACEHOLDER;
 const JWT_EXPIRES = '24h';
 const ALLOW_INSECURE_MS_LOGIN = process.env.ALLOW_INSECURE_MS_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
-const DEV_MS_LOGIN_SECRET = process.env.DEV_MS_LOGIN_SECRET;
+const DEV_MS_LOGIN_SECRET = (
+  process.env.DEV_MS_LOGIN_SECRET &&
+  process.env.DEV_MS_LOGIN_SECRET.trim() &&
+  process.env.DEV_MS_LOGIN_SECRET !== 'change_me_for_dev'
+)
+  ? process.env.DEV_MS_LOGIN_SECRET
+  : null;
 
 // Stricter rate limit specifically for login endpoints to limit brute-force attempts
 const loginLimiter = rateLimit({
