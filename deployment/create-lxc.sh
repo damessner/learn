@@ -29,8 +29,59 @@ fi
 
 # 1. Determine next available VM/CT ID
 NEXT_ID=$(pvesh get /cluster/nextid)
-read -p "Enter Container ID [Default: $NEXT_ID]: " CTID
-CTID=${CTID:-$NEXT_ID}
+
+# Auto-detect default storage pool
+if pvesm status | grep -q -E '^local-lvm\s'; then
+  DEFAULT_STORAGE="local-lvm"
+elif pvesm status | grep -q -E '^local\s'; then
+  DEFAULT_STORAGE="local"
+else
+  DEFAULT_STORAGE=$(pvesm status | awk 'NR>1 {print $1}' | head -n 1)
+fi
+
+echo -e "This script will create a new Debian 12 LXC container and install LearnFlow."
+read -p "Use Default Settings? (ID: $NEXT_ID, Name: learnflow, Storage: $DEFAULT_STORAGE, IP: DHCP) [Y/n]: " USE_DEFAULTS
+USE_DEFAULTS=$(echo "$USE_DEFAULTS" | tr '[:upper:]' '[:lower:]')
+USE_DEFAULTS=${USE_DEFAULTS:-y}
+
+if [ "$USE_DEFAULTS" = "y" ]; then
+  CTID=$NEXT_ID
+  HOSTNAME="learnflow"
+  STORAGE=$DEFAULT_STORAGE
+  BRIDGE="vmbr0"
+  IP_CFG="dhcp"
+  GATEWAY=""
+else
+  echo -e "\n${YELLOW}--- Advanced Configuration ---${NC}"
+  
+  # Prompt Container ID
+  read -p "Enter Container ID [Default: $NEXT_ID]: " CTID
+  CTID=${CTID:-$NEXT_ID}
+
+  # Prompt Hostname
+  read -p "Enter Hostname [Default: learnflow]: " HOSTNAME
+  HOSTNAME=${HOSTNAME:-learnflow}
+
+  # Prompt Storage
+  echo -e "${BLUE}Scanning available storage pools...${NC}"
+  pvesm status
+  read -p "Enter Target Storage Pool (for disk volume) [Default: $DEFAULT_STORAGE]: " STORAGE
+  STORAGE=${STORAGE:-$DEFAULT_STORAGE}
+
+  # Prompt Bridge
+  read -p "Enter Network Bridge [Default: vmbr0]: " BRIDGE
+  BRIDGE=${BRIDGE:-vmbr0}
+
+  # Prompt IP Settings
+  read -p "Enter IP Settings (e.g. dhcp or 192.168.1.50/24) [Default: dhcp]: " IP_CFG
+  IP_CFG=${IP_CFG:-dhcp}
+
+  # Prompt Gateway
+  GATEWAY=""
+  if [ "$IP_CFG" != "dhcp" ]; then
+    read -p "Enter Gateway IP: " GATEWAY
+  fi
+fi
 
 # Check if container already exists
 if pct status "$CTID" >/dev/null 2>&1; then
@@ -44,30 +95,6 @@ if pct status "$CTID" >/dev/null 2>&1; then
     echo -e "${RED}Error: Container $CTID already exists. Deployment aborted.${NC}"
     exit 1
   fi
-fi
-
-# 2. Hostname
-read -p "Enter Hostname [Default: learnflow]: " HOSTNAME
-HOSTNAME=${HOSTNAME:-learnflow}
-
-# 3. Target Storage for Container Disk
-echo -e "${BLUE}Scanning available storage pools...${NC}"
-pvesm status
-read -p "Enter Target Storage Pool (for disk volume) [Default: local-lvm]: " STORAGE
-STORAGE=${STORAGE:-local-lvm}
-
-# 4. Network Bridge
-read -p "Enter Network Bridge [Default: vmbr0]: " BRIDGE
-BRIDGE=${BRIDGE:-vmbr0}
-
-# 5. IP Settings
-read -p "Enter IP Settings (e.g. dhcp or 192.168.1.50/24) [Default: dhcp]: " IP_CFG
-IP_CFG=${IP_CFG:-dhcp}
-
-# 6. Gateway (optional, only needed if static IP)
-GATEWAY=""
-if [ "$IP_CFG" != "dhcp" ]; then
-  read -p "Enter Gateway IP: " GATEWAY
 fi
 
 # 7. Check / Download template
