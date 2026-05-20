@@ -34,6 +34,44 @@ router.get('/student-status', (req, res) => {
   }
 });
 
+// ─── Join Class by Code (student) ─────────────────────────────────────────────
+router.post('/join', (req, res) => {
+  if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
+  const { class_code } = req.body;
+  if (!class_code) return res.status(400).json({ error: 'class_code is required' });
+  try {
+    const db = getDB();
+    const cls = db.prepare('SELECT * FROM classes WHERE class_code = ?').get(class_code.trim().toUpperCase());
+    if (!cls) return res.status(404).json({ error: 'Class code not found' });
+    const already = db.prepare('SELECT 1 FROM class_students WHERE class_id = ? AND student_id = ?').get(cls.id, req.user.userId);
+    if (already) return res.status(409).json({ error: 'Already enrolled in this class' });
+    db.prepare('INSERT INTO class_students (class_id, student_id) VALUES (?, ?)').run(cls.id, req.user.userId);
+    res.json({ success: true, class: { id: cls.id, name: cls.name } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Student Announcements (student sees announcements for their classes) ─────
+router.get('/student/announcements', (req, res) => {
+  if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
+  try {
+    const db = getDB();
+    const announcements = db.prepare(`
+      SELECT a.id, a.message, a.created_at, a.expires_at, c.name as class_name
+      FROM announcements a
+      JOIN classes c ON c.id = a.class_id
+      JOIN class_students cs ON cs.class_id = a.class_id
+      WHERE cs.student_id = ?
+        AND (a.expires_at IS NULL OR a.expires_at > datetime('now'))
+      ORDER BY a.created_at DESC
+    `).all(req.user.userId);
+    res.json(announcements);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.use(requireRole('teacher', 'admin'));
 
 // ─── List Classes ─────────────────────────────────────────────────────────────
@@ -54,6 +92,11 @@ router.get('/', (req, res) => {
   }
 });
 
+// ─── Utility: generate a random uppercase 6-char alphanumeric class code ───────
+function generateClassCode() {
+  return Math.random().toString(36).substring(2).padEnd(6, '0').substring(0, 6).toUpperCase();
+}
+
 // ─── Create Class ─────────────────────────────────────────────────────────────
 router.post('/', (req, res) => {
   const { name } = req.body;
@@ -64,10 +107,16 @@ router.post('/', (req, res) => {
   try {
     const db = getDB();
     const id = uuidv4();
+    let classCode = generateClassCode();
+    let attempts = 0;
+    while (db.prepare('SELECT 1 FROM classes WHERE class_code = ?').get(classCode)) {
+      if (++attempts > 10) throw new Error('Could not generate a unique class code. Please try again.');
+      classCode = generateClassCode();
+    }
     db.prepare(`
-      INSERT INTO classes (id, name, created_by)
-      VALUES (?, ?, ?)
-    `).run(id, name.trim(), req.user.userId);
+      INSERT INTO classes (id, name, created_by, class_code)
+      VALUES (?, ?, ?, ?)
+    `).run(id, name.trim(), req.user.userId, classCode);
 
     const newClass = db.prepare('SELECT * FROM classes WHERE id = ?').get(id);
     res.status(201).json(newClass);
@@ -296,6 +345,111 @@ router.post('/students/manual', (req, res) => {
 
     const newUser = db.prepare('SELECT id, name, email, username, role FROM users WHERE id = ?').get(userId);
     res.status(201).json(newUser);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Announcements CRUD ─────────────────────────────────────────────────────
+router.get('/:id/announcements', (req, res) => {
+  try {
+    const db = getDB();
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    if (!cls) return res.status(404).json({ error: 'Class not found' });
+    const announcements = db.prepare(`
+      SELECT a.*, u.name as author_name FROM announcements a
+      LEFT JOIN users u ON u.id = a.created_by
+      WHERE a.class_id = ? ORDER BY a.created_at DESC
+    `).all(req.params.id);
+    res.json(announcements);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/announcements', (req, res) => {
+  const { message, expires_at } = req.body;
+  if (!message || !message.trim()) return res.status(400).json({ error: 'message is required' });
+  try {
+    const db = getDB();
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    if (!cls) return res.status(404).json({ error: 'Class not found' });
+    const id = uuidv4();
+    db.prepare('INSERT INTO announcements (id, class_id, created_by, message, expires_at) VALUES (?, ?, ?, ?, ?)').run(id, req.params.id, req.user.userId, message.trim(), expires_at || null);
+    res.status(201).json(db.prepare('SELECT * FROM announcements WHERE id = ?').get(id));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id/announcements/:announcementId', (req, res) => {
+  try {
+    const db = getDB();
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    if (!cls) return res.status(404).json({ error: 'Class not found' });
+    db.prepare('DELETE FROM announcements WHERE id = ? AND class_id = ?').run(req.params.announcementId, req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Export Class CSV ──────────────────────────────────────────────────────────
+router.get('/:id/export-csv', (req, res) => {
+  try {
+    const db = getDB();
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    if (!cls) return res.status(404).json({ error: 'Class not found' });
+
+    const students = db.prepare(`
+      SELECT u.name, u.email, u.username,
+        COUNT(DISTINCT s.id) as total_submissions,
+        ROUND(AVG(CASE WHEN s.max_score > 0 THEN CAST(s.score AS REAL)/s.max_score*100 ELSE NULL END), 1) as avg_pct
+      FROM class_students cs
+      JOIN users u ON u.id = cs.student_id
+      LEFT JOIN submissions s ON s.user_id = u.id AND s.submitted_at IS NOT NULL
+        AND s.assignment_id IN (SELECT id FROM assignments WHERE class_id = ?)
+      WHERE cs.class_id = ?
+      GROUP BY u.id
+      ORDER BY u.name
+    `).all(req.params.id, req.params.id);
+
+    const lines = ['Name,Email,Username,Submissions,Avg %'];
+    students.forEach(s => {
+      lines.push(`"${s.name}","${s.email}","${s.username}",${s.total_submissions},${s.avg_pct ?? ''}`);
+    });
+    const csv = lines.join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${cls.name.replace(/[^a-z0-9]/gi, '_')}_students.csv"`);
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Class Stats ───────────────────────────────────────────────────────────────
+router.get('/:id/stats', (req, res) => {
+  try {
+    const db = getDB();
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    if (!cls) return res.status(404).json({ error: 'Class not found' });
+
+    const totalStudents = db.prepare('SELECT COUNT(*) as cnt FROM class_students WHERE class_id = ?').get(req.params.id).cnt;
+    const assignments = db.prepare('SELECT COUNT(*) as cnt FROM assignments WHERE class_id = ?').get(req.params.id).cnt;
+    const submissions = db.prepare(`
+      SELECT COUNT(*) as cnt,
+        ROUND(AVG(CASE WHEN max_score > 0 THEN CAST(score AS REAL)/max_score*100 ELSE NULL END), 1) as avg_pct
+      FROM submissions s
+      JOIN assignments a ON a.id = s.assignment_id
+      WHERE a.class_id = ? AND s.submitted_at IS NOT NULL
+    `).get(req.params.id);
+
+    res.json({
+      totalStudents,
+      assignments,
+      totalSubmissions: submissions.cnt,
+      avgPercentage: submissions.avg_pct || 0
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

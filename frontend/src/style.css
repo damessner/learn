@@ -55,6 +55,41 @@
   }
 }
 
+/* Manual dark theme (via data-theme="dark") */
+[data-theme="dark"] {
+  --bg-main: #0b0f19;
+  --bg-card: #151c2c;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #1e293b;
+  --primary-light: hsl(var(--primary-hue), 30%, 15%);
+  --secondary-light: hsl(var(--secondary-hue), 30%, 15%);
+  --success-light: hsl(142, 30%, 12%);
+  --warning-light: hsl(38, 30%, 12%);
+  --danger-light: hsl(350, 30%, 12%);
+}
+
+/* Manual light theme (via data-theme="light") */
+[data-theme="light"] {
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --primary-light: hsl(var(--primary-hue), 85%, 96%);
+  --secondary-light: hsl(var(--secondary-hue), 85%, 96%);
+  --success-light: hsl(142, 70%, 96%);
+  --warning-light: hsl(38, 92%, 96%);
+  --danger-light: hsl(350, 80%, 96%);
+}
+
+/* Print styles */
+@media print {
+  .no-print, nav, .sidebar, .app-header, button:not(.print-btn) { display: none !important; }
+  body { background: white; color: black; }
+  .worksheet-body { box-shadow: none; }
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

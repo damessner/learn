@@ -1,7 +1,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
-const { requireAuth } = require('./auth');
+const { requireAuth, requireRole } = require('./auth');
 
 const router = express.Router();
 
@@ -239,5 +239,46 @@ function isAcceptableVariant(student, correct) {
   }
   return matches / correct.length >= 0.85;
 }
+
+// ─── Teacher Feedback on Submission ──────────────────────────────────────────
+router.post('/:id/feedback', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  const { feedback_text } = req.body;
+  if (feedback_text === undefined) return res.status(400).json({ error: 'feedback_text is required' });
+  const db = getDB();
+  const submission = db.prepare('SELECT * FROM submissions WHERE id = ?').get(req.params.id);
+  if (!submission) return res.status(404).json({ error: 'Submission not found' });
+  db.prepare('UPDATE submissions SET feedback_text = ? WHERE id = ?').run(feedback_text, req.params.id);
+  res.json({ success: true });
+});
+
+// ─── Student Summary Stats ─────────────────────────────────────────────────────
+router.get('/student/summary', requireAuth, (req, res) => {
+  const db = getDB();
+  const stats = db.prepare(`
+    SELECT
+      COUNT(*) as total_submitted,
+      ROUND(AVG(CASE WHEN max_score > 0 THEN CAST(score AS REAL) / max_score * 100 ELSE NULL END), 1) as avg_percentage,
+      SUM(CASE WHEN max_score > 0 AND CAST(score AS REAL) / max_score >= 0.6 THEN 1 ELSE 0 END) as passed_count,
+      MAX(submitted_at) as last_submitted_at
+    FROM submissions
+    WHERE user_id = ? AND submitted_at IS NOT NULL
+  `).get(req.user.userId);
+
+  const pending = db.prepare(`
+    SELECT COUNT(*) as cnt FROM assignments a
+    JOIN class_students cs ON cs.class_id = a.class_id
+    WHERE cs.student_id = ?
+      AND NOT EXISTS (
+        SELECT 1 FROM submissions s WHERE s.assignment_id = a.id AND s.user_id = ?
+      )
+  `).get(req.user.userId, req.user.userId);
+
+  res.json({
+    totalSubmitted: stats.total_submitted || 0,
+    avgPercentage: stats.avg_percentage || 0,
+    passedCount: stats.passed_count || 0,
+    pendingAssignments: pending.cnt || 0
+  });
+});
 
 module.exports = router;
