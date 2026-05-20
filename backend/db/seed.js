@@ -298,7 +298,7 @@ function seed() {
   // Bind the worksheets to the course in sequence
   db.prepare('DELETE FROM course_worksheets WHERE course_id = ?').run(courseId);
   db.prepare(`
-    INSERT INTO course_worksheets (course_id, worksheet_id, sort_order)
+    INSERT INTO course_worksheets (course_id, worksheet_id, order_index)
     VALUES (?, ?, 1), (?, ?, 2), (?, ?, 3)
   `).run(courseId, ws1Id, courseId, ws2Id, courseId, ws3Id);
 
