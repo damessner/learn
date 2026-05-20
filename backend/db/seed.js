@@ -9,10 +9,12 @@ const DB_PATH = path.isAbsolute(rawDbPath)
   : path.resolve(__dirname, '..', rawDbPath);
 const db = new Database(DB_PATH);
 
+const PBKDF2_ITERATIONS = 310000;
+
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return `${salt}:${hash}`;
+  const hash = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, 64, 'sha512').toString('hex');
+  return `${PBKDF2_ITERATIONS}:${salt}:${hash}`;
 }
 
 function seed() {
@@ -22,14 +24,14 @@ function seed() {
   const teacherId = 'teacher_demo_id';
   const teacherPassHash = hashPassword('teacher123');
   db.prepare(`
-    INSERT OR REPLACE INTO users (id, ms_id, username, password_hash, name, email, role)
+    INSERT OR IGNORE INTO users (id, ms_id, username, password_hash, name, email, role)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(teacherId, null, 'teacher', teacherPassHash, 'Jane Teacher', 'teacher@school.local', 'teacher');
 
   const studentId = 'student_demo_id';
   const studentPassHash = hashPassword('student123');
   db.prepare(`
-    INSERT OR REPLACE INTO users (id, ms_id, username, password_hash, name, email, role)
+    INSERT OR IGNORE INTO users (id, ms_id, username, password_hash, name, email, role)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(studentId, null, 'student', studentPassHash, 'Marie Meier', 'student@school.local', 'student');
 
@@ -128,6 +130,17 @@ function seed() {
     '2026-06-30T12:00:00.000Z',
     teacherId
   );
+
+  // 4. Create the class and enroll the demo student so the regular student login shows the worksheet
+  db.prepare(`
+    INSERT OR IGNORE INTO classes (id, name, created_by)
+    VALUES (?, ?, ?)
+  `).run('class_3a_id', '3a English', teacherId);
+
+  db.prepare(`
+    INSERT OR IGNORE INTO class_students (class_id, student_id)
+    VALUES (?, ?)
+  `).run('class_3a_id', studentId);
 
   console.log('✅ Seeding completed!');
   console.log('   Use Assignment Code: 5a1b-c3d4 to join as Marie Meier');

@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const rateLimit = require('express-rate-limit');
 const { getDB } = require('../db/init');
 const { verifyMicrosoftIdToken } = require('../services/microsoftAuth');
 
@@ -11,6 +12,15 @@ const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET_PLACEHOLDER;
 const JWT_EXPIRES = '24h';
 const ALLOW_INSECURE_MS_LOGIN = process.env.ALLOW_INSECURE_MS_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
 const DEV_MS_LOGIN_SECRET = process.env.DEV_MS_LOGIN_SECRET;
+
+// Stricter rate limit specifically for login endpoints to limit brute-force attempts
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 if (process.env.NODE_ENV === 'production') {
   if (
@@ -29,18 +39,41 @@ function safeSecretEquals(expected, provided) {
   return crypto.timingSafeEqual(expectedBuf, providedBuf);
 }
 
+const PBKDF2_ITERATIONS = 310000;
+
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return `${salt}:${hash}`;
+  const hash = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, 64, 'sha512').toString('hex');
+  return `${PBKDF2_ITERATIONS}:${salt}:${hash}`;
 }
 
 function verifyPassword(password, storedHash) {
   if (!storedHash) return false;
-  const [salt, hash] = storedHash.split(':');
-  if (!salt || !hash) return false;
-  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return hash === verifyHash;
+  const parts = storedHash.split(':');
+  let iterations, salt, hash;
+  if (parts.length === 3) {
+    // Current format: iterations:salt:hash
+    iterations = parseInt(parts[0], 10);
+    salt = parts[1];
+    hash = parts[2];
+  } else if (parts.length === 2) {
+    // Legacy format: salt:hash (1000 iterations)
+    iterations = 1000;
+    salt = parts[0];
+    hash = parts[1];
+  } else {
+    return false;
+  }
+  if (!salt || !hash || !iterations) return false;
+  try {
+    const verifyHash = crypto.pbkdf2Sync(password, salt, iterations, 64, 'sha512').toString('hex');
+    const hashBuf = Buffer.from(hash, 'hex');
+    const verifyBuf = Buffer.from(verifyHash, 'hex');
+    if (hashBuf.length !== verifyBuf.length) return false;
+    return crypto.timingSafeEqual(hashBuf, verifyBuf);
+  } catch {
+    return false;
+  }
 }
 
 // ─── Public Config Endpoint ───────────────────────────────────────────────
@@ -56,7 +89,7 @@ router.get('/config', (req, res) => {
 });
 
 // ─── Local Login Endpoint ───────────────────────────────────────────────
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
@@ -107,7 +140,7 @@ router.post('/login', (req, res) => {
 // ─── Microsoft OAuth2 callback ───────────────────────────────────────────────
 // After MSAL client-side auth, the frontend sends us the id_token.
 // We verify it and create/update the user in our DB.
-router.post('/microsoft', async (req, res) => {
+router.post('/microsoft', loginLimiter, async (req, res) => {
   try {
     const { idToken, name: fallbackName, email: fallbackEmail, devSecret } = req.body;
     let profile;
