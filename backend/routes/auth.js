@@ -150,12 +150,12 @@ router.post('/microsoft', loginLimiter, async (req, res) => {
       idToken,
       fallbackName,
       fallbackEmail,
-      name,
-      email,
+      name: bodyName,
+      email: bodyEmail,
       devSecret
     } = req.body;
-    const effectiveFallbackName = fallbackName || name;
-    const effectiveFallbackEmail = fallbackEmail || email;
+    const effectiveFallbackName = fallbackName || bodyName;
+    const effectiveFallbackEmail = fallbackEmail || bodyEmail;
     let profile;
 
     if (idToken) {
