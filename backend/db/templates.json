@@ -1,0 +1,164 @@
+[
+  {
+    "id": "tpl_present_perfect_past_simple",
+    "title": "Present Perfect vs. Past Simple",
+    "description": "Interactive grammar quiz testing the difference between actions completed in the past and actions related to the present.",
+    "subject": "English",
+    "grade_level": "3. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_tpl_ppps_text_1",
+          "type": "text",
+          "content": "# Present Perfect vs. Past Simple\n\nRemember:\n- **Past Simple**: Used for completed actions in the past with a specific time word (e.g., *yesterday, in 2020, 5 minutes ago*).\n- **Present Perfect**: Used for life experiences, actions with a connection to the present, or when the exact time is not important (e.g., *already, yet, never, ever*)."
+        },
+        {
+          "id": "blk_tpl_ppps_gap_1",
+          "type": "gap_fill",
+          "instruction": "Fill in the blanks with the correct form (Past Simple or Present Perfect) of the verb in brackets:",
+          "template": "1. I {saw} a great movie yesterday. (see)\n2. She {has already finished} her homework, so she can play now. (already / finish)\n3. We {went} to London last summer. (go)\n4. They {have lived} in Telfs for five years. (live)",
+          "points": 4
+        },
+        {
+          "id": "blk_tpl_ppps_drag_1",
+          "type": "drag_drop",
+          "instruction": "Drag and drop the correct signal words into the correct category:",
+          "items": ["yesterday", "since 2018", "in 2015", "already", "two days ago", "never"],
+          "targets": [
+            "Past Simple signal words: ___, ___, ___",
+            "Present Perfect signal words: ___, ___, ___"
+          ],
+          "answers": {
+            "0": "yesterday",
+            "1": "in 2015",
+            "2": "two days ago",
+            "3": "since 2018",
+            "4": "already",
+            "5": "never"
+          },
+          "points": 3
+        },
+        {
+          "id": "blk_tpl_ppps_sc_1",
+          "type": "single_choice",
+          "instruction": "Choose the grammatically correct sentence:",
+          "options": [
+            "I have written three letters yesterday.",
+            "I wrote three letters yesterday.",
+            "I write three letters yesterday."
+          ],
+          "correct": 1,
+          "points": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_prepositions_challenge",
+    "title": "Grammar Challenge: Prepositions",
+    "description": "Learn and practice prepositions of place and time (in, on, at, under, next to).",
+    "subject": "English",
+    "grade_level": "1. & 2. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_tpl_prep_text_1",
+          "type": "text",
+          "content": "# Prepositions of Time & Place\n\nUse:\n- **IN**: months, years, seasons, parts of the day, enclosed spaces.\n- **ON**: days of the week, dates, surfaces.\n- **AT**: specific times, specific locations."
+        },
+        {
+          "id": "blk_tpl_prep_gap_1",
+          "type": "gap_fill",
+          "instruction": "Fill in the correct preposition of time (in, on, at):",
+          "template": "My birthday is {on} May 24th. School starts {at} 8:00 AM. We usually go skiing {in} winter. I like watching movies {at} night.",
+          "points": 4
+        },
+        {
+          "id": "blk_tpl_prep_match_1",
+          "type": "matching",
+          "instruction": "Match the prepositions of place with their corresponding meaning:",
+          "left": ["under", "next to", "in front of", "between"],
+          "right": ["directly beside", "beneath or below", "in the middle of two things", "at the face of"],
+          "pairs": [
+            ["under", "beneath or below"],
+            ["next to", "directly beside"],
+            ["in front of", "at the face of"],
+            ["between", "in the middle of two things"]
+          ],
+          "points": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_vocab_irregular_verbs",
+    "title": "Vocabulary Builder: Irregular Verbs",
+    "description": "Writing training loop for key irregular verbs (Infinitive -> Deutsch). Autocorrect is disabled for strict spelling practice.",
+    "subject": "English",
+    "grade_level": "2. & 3. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_tpl_vocab_text_1",
+          "type": "text",
+          "content": "# English Irregular Verbs\nComplete the writing training to master these essential verbs. You need to type the correct German translation."
+        },
+        {
+          "id": "blk_tpl_vocab_core",
+          "type": "vocabulary",
+          "instruction": "Translate the following irregular verbs into German:",
+          "direction": "l2r",
+          "words": [
+            { "left": "bring", "right": "bringen" },
+            { "left": "catch", "right": "fangen" },
+            { "left": "do", "right": "tun" },
+            { "left": "eat", "right": "essen" },
+            { "left": "go", "right": "gehen" },
+            { "left": "have", "right": "haben" },
+            { "left": "write", "right": "schreiben" },
+            { "left": "read", "right": "lesen" },
+            { "left": "sing", "right": "singen" },
+            { "left": "speak", "right": "sprechen" }
+          ],
+          "points": 10
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_active_passive_voice",
+    "title": "Active vs. Passive Voice Challenge",
+    "description": "Advanced grammar worksheets testing active and passive sentence transformations.",
+    "subject": "English",
+    "grade_level": "4. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_tpl_ap_text_1",
+          "type": "text",
+          "content": "# Active vs. Passive Voice\n\nHow to form the passive voice:\n- **Object + Form of 'to be' + Past Participle (3rd form)**.\n- *Active*: \"The cat chased the mouse.\"\n- *Passive*: \"The mouse was chased by the cat.\""
+        },
+        {
+          "id": "blk_tpl_ap_mc_1",
+          "type": "multiple_choice",
+          "instruction": "Select all sentences that are in the PASSIVE voice:",
+          "options": [
+            "The house was built in 1990.",
+            "Grandma baked a delicious chocolate cake.",
+            "A new school is being constructed in Telfs.",
+            "We have played football all afternoon."
+          ],
+          "correct": [0, 2],
+          "points": 2
+        },
+        {
+          "id": "blk_tpl_ap_gap_1",
+          "type": "gap_fill",
+          "instruction": "Transform the active sentences into passive voice:",
+          "template": "1. Active: 'They clean the classrooms every day.'\n   Passive: 'The classrooms {are cleaned} every day.'\n\n2. Active: 'Leo wrote the essay.'\n   Passive: 'The essay {was written} by Leo.'\n\n3. Active: 'She will buy the tickets.'\n   Passive: 'The tickets {will be bought} by her.'",
+          "points": 3
+        }
+      ]
+    }
+  }
+]

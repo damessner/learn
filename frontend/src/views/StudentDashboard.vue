@@ -7,6 +7,15 @@
       </div>
     </header>
 
+    <!-- Unassigned / Unenrolled Banner -->
+    <div v-if="!loading && !isEnrolled" class="unassigned-banner card glass animate-fade-in">
+      <div class="banner-icon">🔔</div>
+      <div class="banner-body">
+        <h3>Class Enrollment Pending</h3>
+        <p>You haven't been assigned to any school classes or groups yet. Please ask your teacher to enroll you so you can access your class worksheets!</p>
+      </div>
+    </div>
+
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
       <p>Loading assignments...</p>
@@ -73,14 +82,18 @@ const user = ref(JSON.parse(localStorage.getItem('user')))
 const assignments = ref([])
 const loading = ref(true)
 const error = ref(null)
+const isEnrolled = ref(true)
+const studentClasses = ref([])
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 
 const fetchAssignments = async () => {
   loading.value = true
   error.value = null
   try {
     const token = localStorage.getItem('token')
+    
+    // Fetch worksheets/assignments
     const resp = await fetch(`${API_BASE}/worksheets`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -88,6 +101,20 @@ const fetchAssignments = async () => {
     })
     if (!resp.ok) throw new Error('Failed to load assignments')
     assignments.value = await resp.json()
+
+    // Fetch enrollment status for real users (guests don't need class rosters)
+    if (user.value && !user.value.isGuest) {
+      const statusResp = await fetch(`${API_BASE}/classes/student-status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      if (statusResp.ok) {
+        const statusData = await statusResp.json()
+        isEnrolled.value = statusData.enrolled
+        studentClasses.value = statusData.classes
+      }
+    }
   } catch (err) {
     error.value = err.message
   } finally {
@@ -323,5 +350,52 @@ const statusClass = (assignment) => {
   height: 100%;
   background-color: var(--primary);
   border-radius: 3px;
+}
+
+.unassigned-banner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.03) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 16px;
+  margin-bottom: 32px;
+}
+
+.banner-icon {
+  font-size: 32px;
+  background: rgba(245, 158, 11, 0.12);
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.08);
+}
+
+.banner-body h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #d97706;
+  margin: 0 0 4px 0;
+}
+
+.banner-body p {
+  font-size: 14px;
+  color: var(--text-color);
+  opacity: 0.85;
+  margin: 0;
+  line-height: 1.5;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
 }
 </style>

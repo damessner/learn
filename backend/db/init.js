@@ -87,9 +87,25 @@ async function initDB() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    -- Classes / Groups
+    CREATE TABLE IF NOT EXISTS classes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Class Membership
+    CREATE TABLE IF NOT EXISTS class_students (
+      class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+      student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      PRIMARY KEY (class_id, student_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_assignments_worksheet_id ON assignments(worksheet_id);
     CREATE INDEX IF NOT EXISTS idx_assignments_class_id ON assignments(class_id);
     CREATE INDEX IF NOT EXISTS idx_submissions_assignment_submitted_at ON submissions(assignment_id, submitted_at);
+    CREATE INDEX IF NOT EXISTS idx_class_students_student_id ON class_students(student_id);
   `);
 
   // Seed a default admin/teacher if none exists

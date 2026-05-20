@@ -1,0 +1,7 @@
+# Ignore Proxmox credentials and connection instructions
+proxmox_credentials.txt
+
+# Ignore SSH keys
+id_ed25519
+id_ed25519.pub
+

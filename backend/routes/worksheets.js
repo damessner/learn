@@ -46,18 +46,21 @@ router.get('/', requireAuth, (req, res) => {
       ORDER BY a.due_date ASC
     `).all(userId, req.user.assignmentId);
   } else if (role === 'student') {
-    // Students see worksheets assigned to them via active assignments
+    // Students see worksheets assigned to them via active assignments matching their class memberships
     worksheets = db.prepare(`
       SELECT w.id, w.title, w.description, w.subject, w.grade_level,
              w.total_points, w.created_at,
-             a.id as assignment_id, a.due_date, a.class_name,
+             a.id as assignment_id, a.due_date, a.class_name, a.class_id,
              s.score, s.submitted_at
       FROM worksheets w
       JOIN assignments a ON a.worksheet_id = w.id
       LEFT JOIN submissions s ON s.assignment_id = a.id AND s.user_id = ?
-      WHERE w.is_published = 1
+      WHERE w.is_published = 1 AND (
+        a.class_id IS NULL OR
+        a.class_id IN (SELECT class_id FROM class_students WHERE student_id = ?)
+      )
       ORDER BY a.due_date ASC
-    `).all(userId);
+    `).all(userId, userId);
   } else {
     // Teachers/admins see all their worksheets
     const filter = role === 'admin' ? '1=1' : 'w.created_by = ?';
@@ -72,6 +75,48 @@ router.get('/', requireAuth, (req, res) => {
   }
 
   res.json(worksheets);
+});
+
+// ─── List templates ──────────────────────────────────────────────────────────
+router.get('/templates', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  try {
+    const templates = require('../db/templates.json');
+    res.json(templates);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load templates' });
+  }
+});
+
+// ─── Clone template ─────────────────────────────────────────────────────────
+router.post('/templates/:id/clone', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
+  try {
+    const templates = require('../db/templates.json');
+    const template = templates.find(t => t.id === req.params.id);
+    if (!template) return res.status(404).json({ error: 'Template not found' });
+
+    const db = getDB();
+    const id = uuidv4();
+    const totalPoints = calculatePoints(template.content);
+
+    db.prepare(`
+      INSERT INTO worksheets (id, title, description, subject, grade_level, created_by, content, total_points)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      template.title,
+      template.description,
+      template.subject,
+      template.grade_level,
+      req.user.userId,
+      JSON.stringify(template.content),
+      totalPoints
+    );
+
+    const cloned = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(id);
+    res.status(201).json({ ...cloned, content: JSON.parse(cloned.content) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Get single worksheet ──────────────────────────────────────────────────────

@@ -32,7 +32,7 @@ const props = defineProps({
 
 const isZoomed = ref(false)
 
-const API_BASE = 'http://localhost:3001'
+const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001' : ''
 
 const computedUrl = computed(() => {
   if (!props.url) return ''

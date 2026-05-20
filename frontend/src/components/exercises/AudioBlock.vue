@@ -54,7 +54,7 @@ const currentTime = ref(0)
 const duration = ref(0)
 const audioRef = ref(null)
 
-const API_BASE = 'http://localhost:3001'
+const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001' : ''
 
 const computedUrl = computed(() => {
   if (!props.url) return ''

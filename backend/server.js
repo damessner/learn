@@ -10,6 +10,7 @@ const worksheetRoutes = require('./routes/worksheets');
 const submissionRoutes = require('./routes/submissions');
 const mediaRoutes = require('./routes/media');
 const teamsRoutes = require('./routes/teams');
+const classRoutes = require('./routes/classes');
 const { initDB } = require('./db/init');
 
 const app = express();
@@ -54,6 +55,7 @@ app.use('/api/worksheets', worksheetRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/teams', teamsRoutes);
+app.use('/api/classes', classRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

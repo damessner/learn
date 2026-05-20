@@ -74,7 +74,7 @@ const error = ref(null)
 const guestName = ref('')
 const guestCode = ref('')
 
-const API_BASE = 'http://localhost:3001/api' // Adapt if host is different
+const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 
 const loginWithMicrosoft = async () => {
   loading.value = true

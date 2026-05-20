@@ -59,16 +59,22 @@ router.post('/microsoft', async (req, res) => {
 
     const db = getDB();
 
-    // Upsert user
     let user = db.prepare('SELECT * FROM users WHERE ms_id = ?').get(msId);
+    if (!user && email) {
+      user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+      if (user) {
+        db.prepare('UPDATE users SET ms_id = ?, last_login = datetime(\'now\') WHERE id = ?').run(msId, user.id);
+        user = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+      }
+    }
+
     if (!user) {
-      const id = uuidv4();
-      // New users are students by default; teachers can be promoted in admin panel
+      const userId = uuidv4();
       db.prepare(`
         INSERT INTO users (id, ms_id, name, email, role, last_login)
         VALUES (?, ?, ?, ?, 'student', datetime('now'))
-      `).run(id, msId, name, email || '');
-      user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+      `).run(userId, msId, name, email);
+      user = db.prepare('SELECT * FROM users WHERE ms_id = ?').get(msId);
     } else {
       db.prepare('UPDATE users SET last_login = datetime(\'now\'), name = ?, email = ? WHERE ms_id = ?')
         .run(name, email || user.email, msId);

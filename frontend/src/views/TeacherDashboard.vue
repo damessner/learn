@@ -17,15 +17,14 @@
     <!-- Main Navigation tabs -->
     <div class="tabs">
       <button 
-        v-for="tab in ['worksheets', 'assignments']" 
+        v-for="tab in ['worksheets', 'assignments', 'classes', 'templates']" 
         :key="tab"
-        @click="activeTab = tab"
+        @click="switchTab(tab)"
         :class="['tab-btn', { active: activeTab === tab }]"
       >
-        {{ tab.charAt(0).toUpperCase() + tab.slice(1) }}
+        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : 'Templates Library' }}
       </button>
     </div>
-
     <!-- Worksheets Tab -->
     <div v-if="activeTab === 'worksheets'" class="tab-content">
       <div v-if="loading" class="spinner-container">
@@ -34,8 +33,11 @@
       <div v-else-if="worksheets.length === 0" class="empty-state card glass">
         <span>📝</span>
         <h3>No Worksheets Yet</h3>
-        <p>Start by creating your first interactive exercise sheet.</p>
-        <router-link to="/teacher/builder" class="btn btn-primary btn-centered">Create One Now</router-link>
+        <p>Start by creating your first interactive exercise sheet or use one of our templates.</p>
+        <div class="empty-actions">
+          <router-link to="/teacher/builder" class="btn btn-primary">Create Blank Worksheet</router-link>
+          <button @click="switchTab('templates')" class="btn btn-secondary">Browse Templates Library 📚</button>
+        </div>
       </div>
       <div v-else class="table-container card">
         <table class="data-table">
@@ -127,11 +129,190 @@
       </div>
     </div>
 
+    <!-- Classes Tab -->
+    <div v-if="activeTab === 'classes'" class="tab-content">
+      <div v-if="loading" class="spinner-container">
+        <div class="spinner"></div>
+      </div>
+      
+      <!-- Class List View -->
+      <div v-else-if="!selectedClassId" class="classes-overview-section">
+        <div class="section-actions-header">
+          <h2>Classes & Groups</h2>
+          <button @click="showCreateClassModal = true" class="btn btn-primary">
+            <span>＋</span> Create Class
+          </button>
+        </div>
+
+        <div v-if="classes.length === 0" class="empty-state card glass">
+          <span>👥</span>
+          <h3>No Classes Created</h3>
+          <p>Create a class group to assign worksheets and compare students' progress.</p>
+        </div>
+        
+        <div v-else class="classes-grid">
+          <div v-for="cls in classes" :key="cls.id" @click="selectClass(cls.id)" class="class-card card glass clickable">
+            <div class="class-card-header">
+              <h3>{{ cls.name }}</h3>
+              <button @click.stop="deleteClass(cls.id)" class="btn-icon btn-icon-danger" title="Delete Class">
+                <span>🗑️</span>
+              </button>
+            </div>
+            <div class="class-card-body">
+              <p class="pupils-count">👥 <strong>{{ cls.student_count || 0 }}</strong> pupils enrolled</p>
+              <span class="text-link">View Progress Matrix & Roster →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Class Detail View -->
+      <div v-else-if="selectedClassDetail" class="class-detail-section">
+        <div class="detail-header">
+          <button @click="selectedClassId = null; selectedClassDetail = null" class="btn btn-secondary btn-sm">
+            ← Back to Classes
+          </button>
+          <div class="class-title-info">
+            <h2>Class: <span>{{ selectedClassDetail.class.name }}</span></h2>
+            <p class="student-subtitle">👥 {{ selectedClassDetail.matrix.length }} pupils registered</p>
+          </div>
+        </div>
+
+        <!-- Section 1: Progress Matrix -->
+        <div class="class-section card">
+          <div class="class-section-header">
+            <h3>📈 Class Progress Matrix</h3>
+            <span class="helper-text">Visual performance grid for all assignments in this class.</span>
+          </div>
+
+          <div v-if="selectedClassDetail.assignments.length === 0" class="matrix-placeholder">
+            <p>No worksheets have been assigned to this class yet.</p>
+            <button @click="activeTab = 'worksheets'" class="btn btn-secondary btn-sm">Go to Worksheets to Assign</button>
+          </div>
+          <div v-else class="matrix-table-container">
+            <table class="matrix-table">
+              <thead>
+                <tr>
+                  <th class="sticky-col first-col">Student Name</th>
+                  <th v-for="assign in selectedClassDetail.assignments" :key="assign.assignment_id" class="assignment-header-col">
+                    <div class="assign-title" :title="assign.title">{{ assign.title }}</div>
+                    <div class="assign-points">{{ assign.total_points }} pts</div>
+                  </th>
+                  <th>Completion</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in selectedClassDetail.matrix" :key="row.student_id">
+                  <td class="font-bold sticky-col first-col">{{ row.name }}</td>
+                  <td v-for="assign in selectedClassDetail.assignments" :key="assign.assignment_id">
+                    <div class="cell-content">
+                      <span v-if="row.submissions[assign.assignment_id].status === 'completed'" class="status-badge status-completed" :title="'Submitted on ' + formatDate(row.submissions[assign.assignment_id].submitted_at)">
+                        ✅ {{ row.submissions[assign.assignment_id].score }}/{{ row.submissions[assign.assignment_id].max_score }}
+                      </span>
+                      <span v-else-if="row.submissions[assign.assignment_id].status === 'in_progress'" class="status-badge status-progress">
+                        ⏳ Started
+                      </span>
+                      <span v-else class="status-badge status-notstarted">
+                        ❌ Not Started
+                      </span>
+                    </div>
+                  </td>
+                  <td class="font-semibold">{{ calculateStudentCompletion(row, selectedClassDetail.assignments) }}%</td>
+                </tr>
+                <!-- Class Averages Row -->
+                <tr class="averages-row">
+                  <td class="font-bold sticky-col first-col">Class Average</td>
+                  <td v-for="assign in selectedClassDetail.assignments" :key="assign.assignment_id">
+                    <span class="average-badge">
+                      {{ calculateClassAverage(selectedClassDetail.matrix, assign.assignment_id) }}%
+                    </span>
+                  </td>
+                  <td class="font-bold">
+                    {{ calculateClassOverallCompletion(selectedClassDetail.matrix, selectedClassDetail.assignments) }}%
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 2: Student Roster Management -->
+        <div class="class-section card">
+          <div class="class-section-header">
+            <h3>👥 Student Roster</h3>
+            <div class="roster-actions">
+              <button @click="openAddStudentModal" class="btn btn-secondary btn-sm">
+                ＋ Add Existing Pupil
+              </button>
+              <button @click="openCreateStudentModal" class="btn btn-primary btn-sm">
+                ＋ Register New Pupil
+              </button>
+            </div>
+          </div>
+
+          <div v-if="selectedClassDetail.matrix.length === 0" class="empty-state-roster">
+            <p>No students enrolled in this class yet. Click "Add Existing Pupil" or "Register New Pupil" to enroll students.</p>
+          </div>
+          <div v-else class="roster-grid">
+            <div v-for="student in selectedClassDetail.matrix" :key="student.student_id" class="roster-student-item">
+              <div class="student-initials">
+                {{ student.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() }}
+              </div>
+              <div class="student-details">
+                <span class="student-name font-bold">{{ student.name }}</span>
+                <span class="student-email">{{ student.email }}</span>
+              </div>
+              <button @click="removeStudent(student.student_id)" class="btn-remove-roster" title="Remove from class">
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Templates Tab -->
+    <div v-if="activeTab === 'templates'" class="tab-content">
+      <div v-if="loading" class="spinner-container">
+        <div class="spinner"></div>
+      </div>
+      <div v-else class="templates-overview">
+        <div class="section-actions-header">
+          <h2>English Grammar Templates Library</h2>
+          <p class="subtitle">Quickly assign pre-made exercises to your classes. You can edit worksheets after cloning.</p>
+        </div>
+
+        <div class="templates-grid">
+          <div v-for="tpl in templates" :key="tpl.id" class="template-card card glass">
+            <div class="template-tag">English Grammar</div>
+            <h3>{{ tpl.title }}</h3>
+            <p class="template-desc">{{ tpl.description }}</p>
+            <div class="template-meta">
+              <span class="meta-item">🎯 {{ tpl.grade_level }}</span>
+              <span class="meta-item">✏️ {{ tpl.content.blocks.length }} exercises</span>
+            </div>
+            <button @click="useTemplate(tpl.id)" class="btn btn-primary btn-block btn-template-action">
+              ⚡ Clone Worksheet
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Assign Worksheet Modal -->
     <div v-if="showAssignModal" class="modal-overlay">
       <div class="modal card">
         <h2>Assign Worksheet: <span>{{ selectedSheet?.title }}</span></h2>
         <form @submit.prevent="submitAssign" class="modal-form">
+          <div class="form-group">
+            <label>Link to Local Class (Optional)</label>
+            <select v-model="selectedAssignClass" @change="onAssignClassChange" class="form-select">
+              <option :value="null">-- Select Class or Keep Custom --</option>
+              <option v-for="cls in classes" :key="cls.id" :value="cls">
+                {{ cls.name }}
+              </option>
+            </select>
+          </div>
           <div class="form-group">
             <label>School Class Name</label>
             <input type="text" v-model="assignForm.class_name" placeholder="e.g. 3a English" required />
@@ -147,6 +328,90 @@
           <div class="modal-buttons">
             <button type="button" @click="showAssignModal = false" class="btn btn-secondary">Cancel</button>
             <button type="submit" class="btn btn-primary">Assign Worksheet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Create Class Modal -->
+    <div v-if="showCreateClassModal" class="modal-overlay">
+      <div class="modal card">
+        <h2>Create Class / Group</h2>
+        <form @submit.prevent="createClass" class="modal-form">
+          <div class="form-group">
+            <label>Class Name</label>
+            <input type="text" v-model="newClassName" placeholder="e.g. 3a English" required />
+          </div>
+          <div class="modal-buttons">
+            <button type="button" @click="showCreateClassModal = false" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Class</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Add Student to Class Roster Modal -->
+    <div v-if="showAddStudentModal" class="modal-overlay">
+      <div class="modal modal-lg card">
+        <div class="modal-header">
+          <h2>Enroll Pupils in Class</h2>
+          <button @click="showAddStudentModal = false" class="btn-close">×</button>
+        </div>
+        <div class="student-search-container">
+          <input 
+            type="text" 
+            v-model="studentSearchQuery" 
+            placeholder="Search registered students by name or email..." 
+            class="student-search-input"
+          />
+        </div>
+        <div class="student-enroll-list">
+          <div v-for="student in filteredStudents" :key="student.id" class="student-enroll-item">
+            <label class="checkbox-label">
+              <input type="checkbox" :value="student.id" v-model="selectedStudentIds" />
+              <div class="student-enroll-info">
+                <span class="font-bold">{{ student.name }}</span>
+                <span class="student-email">{{ student.email }}</span>
+              </div>
+            </label>
+          </div>
+          <div v-if="filteredStudents.length === 0" class="text-center pad-20">
+            No students found matching "{{ studentSearchQuery }}".
+          </div>
+        </div>
+        <div class="modal-buttons pad-top-20">
+          <button type="button" @click="showAddStudentModal = false" class="btn btn-secondary">Close</button>
+          <button @click="addStudents" class="btn btn-primary" :disabled="selectedStudentIds.length === 0">
+            Add Selected Pupils ({{ selectedStudentIds.length }})
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create Manual Student Modal -->
+    <div v-if="showCreateStudentModal" class="modal-overlay">
+      <div class="modal card">
+        <h2>Register New Student</h2>
+        <form @submit.prevent="createStudent" class="modal-form">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" v-model="newStudentForm.name" placeholder="e.g. Marie Meier" required />
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" v-model="newStudentForm.email" placeholder="e.g. marie.meier@school.com" required />
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <select v-model="newStudentForm.role" class="form-select">
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          <div class="modal-buttons">
+            <button type="button" @click="showCreateStudentModal = false" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">Register & Enroll</button>
           </div>
         </form>
       </div>
@@ -196,9 +461,8 @@
     </div>
   </div>
 </template>
-
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 const worksheets = ref([])
 const assignments = ref([])
@@ -209,11 +473,32 @@ const activeTab = ref('worksheets')
 const showAssignModal = ref(false)
 const selectedSheet = ref(null)
 const assignForm = ref({ class_name: '', class_id: '', due_date: '' })
+const selectedAssignClass = ref(null)
 
 const showResultsModal = ref(false)
 const currentResults = ref([])
 
-const API_BASE = 'http://localhost:3001/api'
+// Classes & Groups state
+const classes = ref([])
+const showCreateClassModal = ref(false)
+const newClassName = ref('')
+
+const selectedClassId = ref(null)
+const selectedClassDetail = ref(null)
+
+const showAddStudentModal = ref(false)
+const allStudents = ref([])
+const studentSearchQuery = ref('')
+const selectedStudentIds = ref([])
+
+// Manual Student registration state
+const showCreateStudentModal = ref(false)
+const newStudentForm = ref({ name: '', email: '', role: 'student' })
+
+// Templates state
+const templates = ref([])
+
+const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 
 const fetchData = async () => {
   loading.value = true
@@ -241,6 +526,9 @@ const fetchData = async () => {
       })
     }
     assignments.value = assignList
+
+    // Classes
+    await fetchClasses()
   } catch (err) {
     error.value = err.message
   } finally {
@@ -250,10 +538,273 @@ const fetchData = async () => {
 
 onMounted(fetchData)
 
+// Roster computed filter
+const filteredStudents = computed(() => {
+  const query = studentSearchQuery.value.toLowerCase().trim()
+  const enrolledIds = selectedClassDetail.value ? selectedClassDetail.value.matrix.map(m => m.student_id) : []
+  return allStudents.value.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(query) || s.email.toLowerCase().includes(query)
+    const notEnrolled = !enrolledIds.includes(s.id)
+    return matchesSearch && notEnrolled
+  })
+})
+
+const switchTab = async (tab) => {
+  activeTab.value = tab
+  if (tab === 'classes') {
+    await fetchClasses()
+  } else if (tab === 'templates') {
+    await fetchTemplates()
+  }
+}
+
+// ─── Classes API Actions ──────────────────────────────────────────────────────
+const fetchClasses = async () => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    classes.value = await res.json()
+  } catch (err) {
+    console.error('Failed to fetch classes:', err)
+  }
+}
+
+const selectClass = async (classId) => {
+  selectedClassId.value = classId
+  await fetchClassDetail(classId)
+}
+
+const fetchClassDetail = async (classId) => {
+  loading.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/${classId}/progress`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    selectedClassDetail.value = await res.json()
+  } catch (err) {
+    alert('Failed to load class details: ' + err.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+const createClass = async () => {
+  if (!newClassName.value.trim()) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ name: newClassName.value })
+    })
+    if (!res.ok) throw new Error('Failed to create class')
+    newClassName.value = ''
+    showCreateClassModal.value = false
+    await fetchClasses()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const deleteClass = async (classId) => {
+  if (!confirm('Are you sure you want to delete this class? This will not delete assignments, but enrollment associations will be lost.')) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/${classId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to delete class')
+    if (selectedClassId.value === classId) {
+      selectedClassId.value = null
+      selectedClassDetail.value = null
+    }
+    await fetchClasses()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Roster API Actions ────────────────────────────────────────────────────────
+const openAddStudentModal = async () => {
+  studentSearchQuery.value = ''
+  selectedStudentIds.value = []
+  showAddStudentModal.value = true
+  
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/students/all`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    allStudents.value = await res.json()
+  } catch (err) {
+    console.error('Failed to load students:', err)
+  }
+}
+
+const addStudents = async () => {
+  if (selectedStudentIds.value.length === 0) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/${selectedClassId.value}/students`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ studentIds: selectedStudentIds.value })
+    })
+    if (!res.ok) throw new Error('Failed to enroll students')
+    showAddStudentModal.value = false
+    await fetchClassDetail(selectedClassId.value)
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const removeStudent = async (studentId) => {
+  if (!confirm('Are you sure you want to remove this pupil from the class roster?')) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/${selectedClassId.value}/students/${studentId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to remove student')
+    await fetchClassDetail(selectedClassId.value)
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Manual Pupil Registration ────────────────────────────────────────────────
+const openCreateStudentModal = () => {
+  newStudentForm.value = { name: '', email: '', role: 'student' }
+  showCreateStudentModal.value = true
+}
+
+const createStudent = async () => {
+  if (!newStudentForm.value.name.trim() || !newStudentForm.value.email.trim()) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/classes/students/manual`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        ...newStudentForm.value,
+        class_id: selectedClassId.value
+      })
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error || 'Failed to register student')
+    }
+    showCreateStudentModal.value = false
+    await fetchClassDetail(selectedClassId.value)
+    alert('Student registered and enrolled successfully!')
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Matrix Math Helpers ───────────────────────────────────────────────────────
+const calculateStudentCompletion = (row, assignments) => {
+  if (assignments.length === 0) return 0
+  let completed = 0
+  assignments.forEach(assign => {
+    if (row.submissions[assign.assignment_id]?.status === 'completed') {
+      completed++
+    }
+  })
+  return Math.round((completed / assignments.length) * 100)
+}
+
+const calculateClassAverage = (matrix, assignmentId) => {
+  if (matrix.length === 0) return 0
+  let sum = 0
+  let count = 0
+  matrix.forEach(row => {
+    const sub = row.submissions[assignmentId]
+    if (sub && sub.status === 'completed') {
+      const percent = (sub.score / sub.max_score) * 100
+      sum += percent
+      count++
+    }
+  })
+  return count > 0 ? Math.round(sum / count) : 0
+}
+
+const calculateClassOverallCompletion = (matrix, assignments) => {
+  if (matrix.length === 0 || assignments.length === 0) return 0
+  let totalCells = matrix.length * assignments.length
+  let completedCells = 0
+  matrix.forEach(row => {
+    assignments.forEach(assign => {
+      if (row.submissions[assign.assignment_id]?.status === 'completed') {
+        completedCells++
+      }
+    })
+  })
+  return Math.round((completedCells / totalCells) * 100)
+}
+
+// ─── Templates API Actions ─────────────────────────────────────────────────────
+const fetchTemplates = async () => {
+  loading.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/worksheets/templates`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    templates.value = await res.json()
+  } catch (err) {
+    console.error('Failed to load templates:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const useTemplate = async (templateId) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/worksheets/templates/${templateId}/clone`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to clone template')
+    alert('Template cloned successfully!')
+    activeTab.value = 'worksheets'
+    await fetchData()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Assignment Setup Actions ──────────────────────────────────────────────────
 const openAssignModal = (sheet) => {
   selectedSheet.value = sheet
+  selectedAssignClass.value = null
   assignForm.value = { class_name: '', class_id: '', due_date: '' }
   showAssignModal.value = true
+}
+
+const onAssignClassChange = () => {
+  if (selectedAssignClass.value) {
+    assignForm.value.class_name = selectedAssignClass.value.name
+    assignForm.value.class_id = selectedAssignClass.value.id
+  } else {
+    assignForm.value.class_name = ''
+    assignForm.value.class_id = ''
+  }
 }
 
 const submitAssign = async () => {
@@ -344,7 +895,6 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleString()
 }
 </script>
-
 <style scoped>
 .teacher-dashboard {
   max-width: 1200px;

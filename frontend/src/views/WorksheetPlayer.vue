@@ -106,7 +106,7 @@ const submitting = ref(false)
 const isSubmitted = ref(false)
 const feedbackSummary = ref(null)
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 let autosaveTimer = null
 
 const fetchWorksheet = async () => {
