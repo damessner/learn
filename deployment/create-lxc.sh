@@ -112,7 +112,6 @@ pct create "$CTID" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE_FILE}" \
   -cores 2 \
   -memory 1024 \
   -swap 512 \
-  -status \
   -storage "$STORAGE" \
   -ostype debian \
   -hostname "$HOSTNAME" \
