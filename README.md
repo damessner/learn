@@ -9,7 +9,9 @@ An interactive, high-performance web-based learning and worksheet system designe
   - **Multiple & Single Choice**: Choice grids with clear correct/incorrect highlights.
   - **Matching / Connect**: SVG canvas rendering connection lines between items.
   - **Rich Media**: In-line audio widgets and expandable zoom lightboxes for images.
-- **Teams Sync & SSO**: Login using Microsoft credentials and push grades directly into Teams assignments.
+- **Authentication Flexibility**: Choice of Local Credentials (username/password) or Microsoft Entra ID (SSO) login.
+- **Admin Dashboard Settings**: Full User Account Roster (register, edit, change password, delete) and real-time authentication mode selection tab.
+- **Teams Sync**: Push grades directly into Microsoft Teams assignments.
 - **Guest / Code Login**: Fallback mode allowing students to join with an assignment code and name (no MSAL tenant required).
 - **Auto-Save**: Automatic draft saving to SQLite database every 20 seconds.
 - **AI Worksheet Drafting**: Teachers/admins can generate compact worksheet JSON drafts in the builder via **Gemini API** or **Ollama**.
@@ -146,6 +148,28 @@ If you prefer to configure your LXC container manually:
 
 ---
 
+### 🔄 Updating LearnFlow in the LXC Container
+
+If you already have LearnFlow running inside a container, you can update it to the latest version.
+
+#### Option 1: From the Proxmox Host Node (Recommended)
+You can run this command directly from your Proxmox VE hypervisor host to update container `100` (replace `100` with your actual Container ID):
+```bash
+pct exec 100 -- bash -c "cd /opt/learnflow && git pull && bash deployment/setup-lxc.sh"
+```
+
+#### Option 2: From Inside the LXC Container Console
+If you are logged into the container console as `root`, run:
+```bash
+cd /opt/learnflow
+git pull
+bash deployment/setup-lxc.sh
+```
+
+*(Note: The update script preserves your SQLite database, custom uploaded student files, and environment configuration in `/var/www/learnflow/backend/.env` while rebuilding the frontend bundle and restarting the PM2 service.)*
+
+---
+
 
 ## 🏆 Microsoft Entra ID & Teams Integration Setup
 To enable Microsoft Teams Assignment sync and SSO, a school Microsoft Entra ID (Azure AD) Tenant Administrator must register the application.
@@ -194,9 +218,17 @@ pm2 restart learnflow-backend
 ---
 
 ## 🧪 Testing the Seeded Demo
-A sample English worksheet containing all 5 exercise types is pre-seeded with code **`5a1b-c3d4`**.
-- Go to `http://<lxc-container-ip>`
+LearnFlow comes pre-seeded with admin credentials and a sample student assignment:
+
+### 1. Teacher & Admin Dashboard
+- **URL**: `http://<lxc-container-ip>/login` (or select "Teacher Portal")
+- **Username**: `admin`
+- **Password**: `admin123`
+- *Note: Log in with these credentials to explore the new **User accounts roster** and switch authentication settings between local credentials and Microsoft SSO.*
+
+### 2. Interactive Student Worksheet
+- **URL**: `http://<lxc-container-ip>`
 - Choose the **Guest/Code Login**
 - Enter Name: **Marie Meier**
 - Enter Assignment Code: **5a1b-c3d4**
-- Click **Start Assignment** to play, auto-save, and grade the interactive worksheet!
+- Click **Start Assignment** to practice, auto-save drafts, and review grade scoring!
