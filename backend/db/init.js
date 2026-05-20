@@ -89,6 +89,20 @@ async function initDB() {
       UNIQUE(assignment_id, user_id)
     );
 
+    -- Submission attempts (for retry policies)
+    CREATE TABLE IF NOT EXISTS submission_attempts (
+      id TEXT PRIMARY KEY,
+      assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      attempt_no INTEGER NOT NULL,
+      answers TEXT NOT NULL DEFAULT '{}',
+      score INTEGER DEFAULT 0,
+      max_score INTEGER DEFAULT 0,
+      submitted_at TEXT DEFAULT (datetime('now')),
+      feedback_json TEXT DEFAULT '{}',
+      UNIQUE(assignment_id, user_id, attempt_no)
+    );
+
     -- Media files
     CREATE TABLE IF NOT EXISTS media_files (
       id TEXT PRIMARY KEY,
@@ -149,11 +163,47 @@ async function initDB() {
       created_at TEXT DEFAULT (datetime('now'))
     );
 
+    -- Student planner tasks
+    CREATE TABLE IF NOT EXISTS planner_items (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      notes TEXT DEFAULT '',
+      due_date TEXT,
+      estimated_minutes INTEGER DEFAULT 30,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending','done')),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Peer reviews
+    CREATE TABLE IF NOT EXISTS peer_reviews (
+      id TEXT PRIMARY KEY,
+      assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+      reviewer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reviewee_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      rating INTEGER CHECK(rating BETWEEN 1 AND 5),
+      comments TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(assignment_id, reviewer_id, reviewee_id)
+    );
+
+    -- Parent digest log
+    CREATE TABLE IF NOT EXISTS parent_digests (
+      id TEXT PRIMARY KEY,
+      student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      generated_by TEXT REFERENCES users(id),
+      email_target TEXT,
+      digest_json TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_assignments_worksheet_id ON assignments(worksheet_id);
     CREATE INDEX IF NOT EXISTS idx_assignments_class_id ON assignments(class_id);
     CREATE INDEX IF NOT EXISTS idx_submissions_assignment_submitted_at ON submissions(assignment_id, submitted_at);
+    CREATE INDEX IF NOT EXISTS idx_submission_attempts_assignment_user ON submission_attempts(assignment_id, user_id);
     CREATE INDEX IF NOT EXISTS idx_class_students_student_id ON class_students(student_id);
     CREATE INDEX IF NOT EXISTS idx_course_assignments_class_id ON course_assignments(class_id);
+    CREATE INDEX IF NOT EXISTS idx_planner_items_user_due ON planner_items(user_id, due_date);
   `);
 
   // Migrate existing databases to have username/password_hash if they were created before
@@ -179,6 +229,31 @@ async function initDB() {
   }
   try {
     database.exec("ALTER TABLE submissions ADD COLUMN feedback_text TEXT;");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("ALTER TABLE worksheets ADD COLUMN rubric_json TEXT DEFAULT '{}';");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("ALTER TABLE assignments ADD COLUMN retry_policy TEXT DEFAULT 'single';");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("ALTER TABLE assignments ADD COLUMN max_attempts INTEGER DEFAULT 1;");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("ALTER TABLE assignments ADD COLUMN peer_review_enabled INTEGER DEFAULT 0;");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("ALTER TABLE assignments ADD COLUMN adaptive_difficulty TEXT DEFAULT 'auto';");
   } catch (e) {
     // Column already exists
   }

@@ -23,21 +23,23 @@ const ALLOWED_BLOCK_TYPES = new Set([
   'multiple_choice',
   'single_choice',
   'matching',
-  'vocabulary'
+  'vocabulary',
+  'short_answer'
 ]);
 
 const SYSTEM_PROMPT = [
   'You generate compact worksheet JSON for LearnFlow.',
   'Return ONLY valid JSON with shape: {"title":"","description":"","subject":"","grade_level":"","content":{"blocks":[...]}}.',
   'Keep token use low: concise text, avoid explanations.',
-  'Use only block types: text,image,audio,gap_fill,drag_drop,multiple_choice,single_choice,matching,vocabulary.',
+  'Use only block types: text,image,audio,gap_fill,drag_drop,multiple_choice,single_choice,matching,vocabulary,short_answer.',
   'Every block must include id and type; question blocks include points integer.',
   'For gap_fill use "template" with {answer} format.',
   'For drag_drop use items[], targets[], answers object index->answer.',
   'For multiple_choice use options[] and correct[] indexes.',
   'For single_choice use options[] and correct index.',
   'For matching use pairs as [["left","right"]].',
-  'For vocabulary use pairs as [{"l":"EnglishWord","r":"GermanWord"}], direction as "l2r", "r2l", or "mixed", and rawText as string of "English = German" lines.'
+  'For vocabulary use pairs as [{"l":"EnglishWord","r":"GermanWord"}], direction as "l2r", "r2l", or "mixed", and rawText as string of "English = German" lines.',
+  'For short_answer use prompt, optional sample_answer, optional keywords array, and points.'
 ].join(' ');
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
@@ -137,6 +139,11 @@ function sanitizeBlock(block, index) {
         .map(p => ({ l: asText(p.l), r: asText(p.r) }))
         .filter(p => p.l && p.r)
       : [];
+  }
+  if (block.type === 'short_answer') {
+    safe.prompt = asText(block.prompt, 'Write a short answer.');
+    safe.sample_answer = asText(block.sample_answer, '');
+    safe.keywords = Array.isArray(block.keywords) ? block.keywords.map(v => asText(v)).filter(Boolean).slice(0, 10) : [];
   }
 
   return safe;

@@ -42,6 +42,38 @@
       </div>
     </div>
 
+    <div v-if="!user?.isGuest" class="learning-intel-grid">
+      <div class="intel-card card">
+        <h3>🎯 Mastery Map</h3>
+        <p v-if="masteryMap.length === 0" class="muted">No mastery data yet.</p>
+        <div v-else class="intel-list">
+          <div v-for="item in masteryMap.slice(0, 4)" :key="item.subject" class="intel-row">
+            <span>{{ item.subject }}</span>
+            <strong>{{ item.percent }}%</strong>
+          </div>
+        </div>
+      </div>
+      <div class="intel-card card">
+        <h3>🧠 Spaced Practice</h3>
+        <p v-if="spacedQueue.length === 0" class="muted">You are on track.</p>
+        <ul v-else>
+          <li v-for="item in spacedQueue.slice(0, 3)" :key="`${item.subject}-${item.nextPracticeAt}`">
+            {{ item.subject }} ({{ item.priority }})
+          </li>
+        </ul>
+      </div>
+      <div class="intel-card card">
+        <h3>📅 Study Planner</h3>
+        <p class="muted">{{ plannerPendingCount }} pending tasks</p>
+        <button class="btn btn-secondary btn-sm" @click="showQuickPlannerModal = true">+ Quick task</button>
+      </div>
+      <div class="intel-card card">
+        <h3>🏅 Gamification</h3>
+        <p class="muted">Streak: {{ gamification.streakDays || 0 }} day(s)</p>
+        <p class="muted">Badges: {{ unlockedBadges }}</p>
+      </div>
+    </div>
+
     <!-- Unassigned / Unenrolled Banner -->
     <div v-if="!loading && !isEnrolled" class="unassigned-banner card glass animate-fade-in">
       <div class="banner-icon">🔔</div>
@@ -156,11 +188,29 @@
         </div>
       </div>
     </div>
+
+    <div v-if="showQuickPlannerModal" class="modal-overlay" @click.self="showQuickPlannerModal = false">
+      <div class="modal-box">
+        <h3>Add planner task</h3>
+        <div class="form-group">
+          <input
+            type="text"
+            v-model="quickPlannerTitle"
+            placeholder="Task title"
+            aria-label="Planner task title"
+          />
+        </div>
+        <div class="modal-actions">
+          <button @click="showQuickPlannerModal = false" class="btn btn-secondary">Cancel</button>
+          <button @click="addQuickPlannerTask" class="btn btn-primary">Add</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useToast } from '../composables/useToast.js'
 
 const user = ref(JSON.parse(localStorage.getItem('user')))
@@ -172,6 +222,12 @@ const isEnrolled = ref(true)
 const studentClasses = ref([])
 const summary = ref(null)
 const announcements = ref([])
+const masteryMap = ref([])
+const spacedQueue = ref([])
+const plannerItems = ref([])
+const gamification = ref({})
+const showQuickPlannerModal = ref(false)
+const quickPlannerTitle = ref('')
 const showJoinModal = ref(false)
 const joinCode = ref('')
 const joinError = ref('')
@@ -209,6 +265,19 @@ const fetchAssignments = async () => {
 
     if (summaryResp && summaryResp.ok) summary.value = await summaryResp.json()
     if (annResp && annResp.ok) announcements.value = await annResp.json()
+
+    if (user.value && !user.value.isGuest) {
+      const [masteryResp, queueResp, plannerResp, gameResp] = await Promise.all([
+        fetch(`${API_BASE}/learning/student/mastery`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/learning/student/spaced-queue`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/learning/student/planner`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${API_BASE}/learning/student/gamification`, { headers: { 'Authorization': `Bearer ${token}` } })
+      ])
+      if (masteryResp.ok) masteryMap.value = await masteryResp.json()
+      if (queueResp.ok) spacedQueue.value = await queueResp.json()
+      if (plannerResp.ok) plannerItems.value = await plannerResp.json()
+      if (gameResp.ok) gamification.value = await gameResp.json()
+    }
   } catch (err) {
     error.value = err.message
   } finally {
@@ -275,6 +344,26 @@ const statusClass = (assignment) => {
   if (isOverdue(assignment.due_date)) return 'status-overdue'
   return 'status-active'
 }
+
+const plannerPendingCount = computed(() => plannerItems.value.filter(item => item.status === 'pending').length)
+const unlockedBadges = computed(() => (gamification.value.badges || []).filter(b => b.unlocked).length)
+
+const addQuickPlannerTask = async () => {
+  const title = quickPlannerTitle.value.trim()
+  if (!title) return
+  const token = localStorage.getItem('token')
+  const resp = await fetch(`${API_BASE}/learning/student/planner`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ title })
+  })
+  if (resp.ok) {
+    plannerItems.value = [await resp.json(), ...plannerItems.value]
+    showToast('Planner task added', 'success')
+    quickPlannerTitle.value = ''
+    showQuickPlannerModal.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -318,6 +407,18 @@ const statusClass = (assignment) => {
 .ann-icon { font-size: 20px; }
 .ann-body { font-size: 14px; flex: 1; }
 .ann-date { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.learning-intel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.intel-card { padding: 16px; }
+.intel-card h3 { font-size: 16px; margin-bottom: 6px; }
+.intel-list { display: flex; flex-direction: column; gap: 6px; }
+.intel-row { display: flex; justify-content: space-between; font-size: 13px; }
+.muted { color: var(--text-muted); font-size: 13px; }
 
 .loading-state, .error-state {
   display: flex; flex-direction: column; align-items: center;

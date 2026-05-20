@@ -19,6 +19,13 @@
       <div class="sidebar-panel card">
         <h3>General Settings</h3>
         <div class="form-group">
+          <label>Builder Mode</label>
+          <select v-model="builderMode">
+            <option value="basic">Basic</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label>Worksheet Title</label>
           <input type="text" v-model="sheet.title" placeholder="e.g. Present Perfect Practice" />
         </div>
@@ -31,14 +38,18 @@
             <label>Subject</label>
             <input type="text" v-model="sheet.subject" placeholder="e.g. English" />
           </div>
-          <div class="form-group">
+          <div class="form-group" v-if="builderMode === 'advanced'">
             <label>Grade Level</label>
             <input type="text" v-model="sheet.grade_level" placeholder="e.g. 3a" />
           </div>
-          <div class="form-group">
+          <div class="form-group" v-if="builderMode === 'advanced'">
             <label>Tags</label>
             <input type="text" v-model="sheet.tags" placeholder="e.g. grammar, vocabulary, beginner" />
           </div>
+        </div>
+        <div class="form-group" v-if="builderMode === 'advanced'">
+          <label>Rubric (one criterion per line: name|weight|description)</label>
+          <textarea v-model="sheet.rubricText" rows="3" placeholder="Accuracy|50|Correctness of answers&#10;Clarity|25|Clear explanations"></textarea>
         </div>
 
         <div class="ai-section">
@@ -85,6 +96,7 @@
             <button @click="addBlock('single_choice')" class="btn-add-block">🔘 Single Choice</button>
             <button @click="addBlock('matching')" class="btn-add-block">🔗 Connect Texts</button>
             <button @click="addBlock('vocabulary')" class="btn-add-block">📖 Vocabulary</button>
+            <button @click="addBlock('short_answer')" class="btn-add-block">📝 Short Answer</button>
           </div>
         </div>
       </div>
@@ -239,6 +251,19 @@
                 <button @click="addPair(block)" class="btn btn-secondary btn-sm">＋ Add Pair</button>
               </div>
 
+              <!-- Short Answer -->
+              <div v-if="block.type === 'short_answer'" class="editor-row">
+                <div class="row-between">
+                  <label>Prompt</label>
+                  <div class="points-input">
+                    Points: <input type="number" v-model.number="block.points" min="1" />
+                  </div>
+                </div>
+                <textarea v-model="block.prompt" rows="3" placeholder="Ask students for a short free-text response"></textarea>
+                <input type="text" v-model="block.sample_answer" placeholder="Optional sample answer (not shown to students)" class="mt-2" />
+                <input type="text" v-model="block.keywordText" placeholder="Keyword list, comma-separated (for AI-style feedback)" class="mt-2" />
+              </div>
+
               <!-- Vocabulary Block Editor -->
               <div v-if="block.type === 'vocabulary'" class="editor-row">
                 <div class="row-between">
@@ -298,6 +323,19 @@
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              <div
+                v-if="builderMode === 'advanced' && !['text','image','audio'].includes(block.type)"
+                class="editor-row"
+              >
+                <label>Hints (Light → Guided → Full, one per line)</label>
+                <textarea
+                  :value="(block.hints || []).join('\n')"
+                  @input="updateHints(block, $event.target.value)"
+                  rows="3"
+                  placeholder="Hint 1&#10;Hint 2&#10;Hint 3"
+                ></textarea>
               </div>
             </div>
           </div>
@@ -635,6 +673,7 @@ import Matching from '../components/exercises/Matching.vue'
 import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
 import Vocabulary from '../components/exercises/Vocabulary.vue'
+import ShortAnswer from '../components/exercises/ShortAnswer.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -643,6 +682,7 @@ const saving = ref(false)
 const aiLoading = ref(false)
 const aiProvider = ref('gemini')
 const aiPrompt = ref('')
+const builderMode = ref('basic')
 
 // AI Wizard State Variables
 const showStartWizard = ref(false)
@@ -697,6 +737,7 @@ const sheet = ref({
   subject: '',
   grade_level: '',
   tags: '',
+  rubricText: '',
   blocks: []
 })
 
@@ -718,6 +759,9 @@ onMounted(async () => {
         subject: data.subject,
         grade_level: data.grade_level,
         tags: data.tags || '',
+        rubricText: Array.isArray(data.rubric?.criteria)
+          ? data.rubric.criteria.map(c => `${c.name || ''}|${c.weight || ''}|${c.description || ''}`).join('\n')
+          : '',
         blocks: data.content?.blocks || []
       }
     } catch (err) {
@@ -781,6 +825,16 @@ const addBlock = (type) => {
         { l: 'cherry', r: 'Kirsche' }
       ]
       break
+    case 'short_answer':
+      baseBlock.prompt = 'Explain your answer in 3-5 sentences.'
+      baseBlock.sample_answer = ''
+      baseBlock.keywordText = ''
+      break
+  }
+
+  if (!['text', 'image', 'audio'].includes(type)) {
+    const subjectHint = sheet.value.subject ? `Relate your answer to ${sheet.value.subject}.` : 'Relate your answer to the lesson topic.'
+    baseBlock.hints = ['Think about the core concept first.', subjectHint, 'Break the task into smaller steps.']
   }
 
   sheet.value.blocks.push(baseBlock)
@@ -901,6 +955,14 @@ const importVocabFile = (event, block) => {
     parseVocabLines(block)
   }
   reader.readAsText(file)
+}
+
+const updateHints = (block, rawText) => {
+  block.hints = String(rawText || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .slice(0, 3)
 }
 
 const generateFromWizard = async () => {
@@ -1025,6 +1087,35 @@ const saveWorksheet = async (publish = false) => {
     return
   }
 
+  const rubricLines = (sheet.value.rubricText || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+  const invalidRubricLine = rubricLines.find(line => line.split('|').length < 3)
+  if (invalidRubricLine) {
+    alert('Rubric format error. Use "name|weight|description" for each rubric line.')
+    return
+  }
+  const rubric = {
+    criteria: rubricLines.map(line => {
+      const [name, weight, description] = line.split('|').map(v => (v || '').trim())
+      return {
+        name: name || 'Criterion',
+        weight: Number.isFinite(Number(weight)) ? Number(weight) : 0,
+        description: description || ''
+      }
+    })
+  }
+  const normalizedBlocks = sheet.value.blocks.map(block => {
+    if (block.type !== 'short_answer') return block
+    const keywords = String(block.keywordText || '')
+      .split(',')
+      .map(v => v.trim())
+      .filter(Boolean)
+      .slice(0, 10)
+    return { ...block, keywords }
+  })
+
   saving.value = true
   const token = localStorage.getItem('token')
   const payload = {
@@ -1033,7 +1124,8 @@ const saveWorksheet = async (publish = false) => {
     subject: sheet.value.subject,
     grade_level: sheet.value.grade_level,
     tags: sheet.value.tags || '',
-    content: { blocks: sheet.value.blocks },
+    rubric,
+    content: { blocks: normalizedBlocks },
     is_published: publish
   }
 
@@ -1119,6 +1211,7 @@ const openLivePreview = () => {
         initialAnswers[block.id] = null
       }
     }
+    if (block.type === 'short_answer') initialAnswers[block.id] = ''
   })
   previewAnswers.value = initialAnswers
   previewIsSubmitted.value = false
@@ -1144,6 +1237,7 @@ const resetLocalPreview = () => {
         initialAnswers[block.id] = null
       }
     }
+    if (block.type === 'short_answer') initialAnswers[block.id] = ''
   })
   previewAnswers.value = initialAnswers
 }
@@ -1156,6 +1250,7 @@ const getExerciseComponent = (type) => {
     case 'single_choice': return SingleChoice
     case 'matching': return Matching
     case 'vocabulary': return Vocabulary
+    case 'short_answer': return ShortAnswer
     default: return null
   }
 }

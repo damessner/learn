@@ -140,6 +140,11 @@ button, .btn {
   min-height: 44px; /* iPad Touch target standard */
 }
 
+button:focus-visible, .btn:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 2px;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, var(--primary), hsl(var(--primary-hue), 85%, 65%));
   color: white;
@@ -224,6 +229,16 @@ input[type="text"], input[type="email"], input[type="password"], select, textare
 input[type="text"]:focus, select:focus, textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+@media (max-width: 900px) {
+  .card {
+    padding: 16px;
+  }
+  button, .btn {
+    min-height: 46px;
+    font-size: 16px;
+  }
 }
 
 /* Exercise Styles */

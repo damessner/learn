@@ -22,6 +22,14 @@
         </div>
         <div class="progress-stats">
           <div class="points-badge">{{ worksheet.total_points }} Points Max</div>
+          <select v-model="preferredLanguage" class="language-select" aria-label="Preferred language">
+            <option value="en-US">English</option>
+            <option value="de-DE">Deutsch</option>
+            <option value="es-ES">Español</option>
+          </select>
+          <button class="btn btn-secondary no-print" @click="toggleReadAloud">
+            {{ readAloudEnabled ? '🔊 Read-aloud on' : '🔈 Read-aloud off' }}
+          </button>
           <button class="btn btn-secondary no-print" @click="printWorksheet">🖨 Print</button>
           <button 
             v-if="!isSubmitted" 
@@ -58,14 +66,38 @@
 
       <!-- Worksheet Content -->
       <div v-show="!isSubmitted || showReview" class="worksheet-body">
-        <div 
-          v-for="(block, idx) in worksheet.content.blocks" 
-          :key="block.id || idx"
-          class="block-container"
-        >
-          <!-- Dynamic Component Mapping -->
-          <component 
-            v-if="getExerciseComponent(block.type)"
+          <div 
+            v-for="(block, idx) in worksheet.content.blocks" 
+            :key="block.id || idx"
+            class="block-container"
+          >
+            <div class="block-tools no-print">
+              <button
+                v-if="Array.isArray(block.hints) && block.hints.length > 0 && !isSubmitted"
+                class="btn btn-secondary btn-sm"
+                @click="revealNextHint(block)"
+              >
+                💡 Hint {{ (hintLevel[block.id] || 0) + 1 }}
+              </button>
+              <button
+                v-if="readAloudEnabled"
+                class="btn btn-secondary btn-sm"
+                @click="speakBlock(block)"
+              >
+                🔊 Read
+              </button>
+            </div>
+            <div
+              v-if="Array.isArray(block.hints) && (hintLevel[block.id] || 0) > 0"
+              class="hint-box card"
+            >
+              <p v-for="(hint, hIdx) in block.hints.slice(0, hintLevel[block.id])" :key="hIdx">
+                {{ hIdx + 1 }}. {{ hint }}
+              </p>
+            </div>
+            <!-- Dynamic Component Mapping -->
+            <component 
+              v-if="getExerciseComponent(block.type)"
             :is="getExerciseComponent(block.type)"
             v-model="answers[block.id]"
             :id="block.id"
@@ -100,6 +132,7 @@ import Matching from '../components/exercises/Matching.vue'
 import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
 import Vocabulary from '../components/exercises/Vocabulary.vue'
+import ShortAnswer from '../components/exercises/ShortAnswer.vue'
 
 const route = useRoute()
 const worksheet = ref(null)
@@ -112,11 +145,40 @@ const submitting = ref(false)
 const isSubmitted = ref(false)
 const feedbackSummary = ref(null)
 const showReview = ref(false)
+const preferredLanguage = ref(localStorage.getItem('preferredLanguage') || 'en-US')
+const parseStoredBoolean = (value, fallback = false) => {
+  if (value === null || value === undefined) return fallback
+  return value === 'true'
+}
+const readAloudEnabled = ref(parseStoredBoolean(localStorage.getItem('readAloudEnabled'), true))
+const hintLevel = ref({})
 
 const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 let autosaveTimer = null
+const OFFLINE_SAVE_KEY = 'learnflow-offline-submission-saves'
+const MAX_OFFLINE_QUEUE_SIZE = 15
 
 const printWorksheet = () => window.print()
+const toggleReadAloud = () => {
+  readAloudEnabled.value = !readAloudEnabled.value
+  localStorage.setItem('readAloudEnabled', String(readAloudEnabled.value))
+}
+
+const revealNextHint = (block) => {
+  const current = hintLevel.value[block.id] || 0
+  const max = Array.isArray(block.hints) ? block.hints.length : 0
+  hintLevel.value[block.id] = Math.min(max, current + 1)
+}
+
+const speakBlock = (block) => {
+  if (!('speechSynthesis' in window)) return
+  const content = block?.instruction || block?.prompt || block?.content || ''
+  if (!content) return
+  const utterance = new SpeechSynthesisUtterance(content)
+  utterance.lang = preferredLanguage.value
+  window.speechSynthesis.cancel()
+  window.speechSynthesis.speak(utterance)
+}
 
 const fetchWorksheet = async () => {
   loading.value = true
@@ -157,6 +219,10 @@ const fetchWorksheet = async () => {
           initialAnswers[block.id] = null
         }
       }
+      if (block.type === 'short_answer') {
+        initialAnswers[block.id] = ''
+      }
+      hintLevel.value[block.id] = 0
     })
 
     if (submission) {
@@ -190,10 +256,12 @@ onMounted(() => {
       autosaveTimer = setInterval(autoSave, 20000) // save every 20s
     }
   })
+  window.addEventListener('online', flushOfflineSaves)
 })
 
 onUnmounted(() => {
   if (autosaveTimer) clearInterval(autosaveTimer)
+  window.removeEventListener('online', flushOfflineSaves)
 })
 
 const autoSave = async () => {
@@ -202,25 +270,67 @@ const autoSave = async () => {
   const token = localStorage.getItem('token')
   const assignmentId = route.params.id
   try {
-    await fetch(`${API_BASE}/submissions/assignment/${assignmentId}/save`, {
+    const payload = { answers: answers.value, saveAttemptedAt: new Date().toISOString() }
+    const response = await fetch(`${API_BASE}/submissions/assignment/${assignmentId}/save`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ answers: answers.value })
+      body: JSON.stringify(payload)
     })
+    if (!response.ok) throw new Error('autosave failed')
   } catch (err) {
-    console.error('Autosave failed:', err)
+    if (!navigator.onLine) {
+      queueOfflineSave(assignmentId, answers.value)
+    }
   } finally {
     saving.value = false
   }
+}
+
+const queueOfflineSave = (assignmentId, payloadAnswers) => {
+  const queue = JSON.parse(localStorage.getItem(OFFLINE_SAVE_KEY) || '[]')
+  const deduped = queue.filter(item => item.assignmentId !== assignmentId)
+  deduped.push({
+    assignmentId,
+    answers: payloadAnswers,
+    token: localStorage.getItem('token'),
+    queuedAt: new Date().toISOString()
+  })
+  localStorage.setItem(OFFLINE_SAVE_KEY, JSON.stringify(deduped.slice(-MAX_OFFLINE_QUEUE_SIZE)))
+}
+
+const flushOfflineSaves = async () => {
+  const queue = JSON.parse(localStorage.getItem(OFFLINE_SAVE_KEY) || '[]')
+  if (!queue.length) return
+  const remaining = []
+  for (const item of queue) {
+    try {
+      const resp = await fetch(`${API_BASE}/submissions/assignment/${item.assignmentId}/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${item.token}`
+        },
+        body: JSON.stringify({ answers: item.answers, replayedFromOffline: true })
+      })
+      if (!resp.ok) throw new Error('sync failed')
+    } catch {
+      remaining.push(item)
+    }
+  }
+  localStorage.setItem(OFFLINE_SAVE_KEY, JSON.stringify(remaining))
 }
 
 // Watch answers change and save progress
 watch(answers, () => {
   // We can let the interval handle auto-saving to prevent server hammering.
 }, { deep: true })
+
+watch(preferredLanguage, (lang) => {
+  localStorage.setItem('preferredLanguage', lang)
+})
 
 const submitWorksheet = async () => {
   if (!confirm('Are you sure you want to submit your worksheet? You cannot make changes afterwards.')) return
@@ -261,6 +371,7 @@ const getExerciseComponent = (type) => {
     case 'single_choice': return SingleChoice
     case 'matching': return Matching
     case 'vocabulary': return Vocabulary
+    case 'short_answer': return ShortAnswer
     default: return null
   }
 }
@@ -317,6 +428,23 @@ const getSingleCorrectAnswerData = (block) => {
   border: 1px solid var(--border-color);
   margin-bottom: 32px;
   box-shadow: var(--shadow-sm);
+}
+
+.language-select {
+  min-width: 120px;
+}
+
+.block-tools {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.hint-box {
+  background: var(--warning-light);
+  border-color: var(--warning);
+  margin-bottom: 10px;
+  padding: 12px;
 }
 
 .progress-details h2 {
