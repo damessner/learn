@@ -102,8 +102,8 @@ router.post('/', (req, res) => {
   try {
     const db = getDB();
     const id = uuidv4();
-    // Generate a unique 6-char class code
-    const genCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+    // Generate a unique 6-char class code, padded to ensure full length
+    const genCode = () => Math.random().toString(36).substring(2).padEnd(6, '0').substring(0, 6).toUpperCase();
     let classCode = genCode();
     while (db.prepare('SELECT 1 FROM classes WHERE class_code = ?').get(classCode)) {
       classCode = genCode();

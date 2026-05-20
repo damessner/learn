@@ -129,7 +129,7 @@
                 <span class="score-label">Score</span>
                 <span class="score-value">{{ assignment.score }} / {{ assignment.total_points }}</span>
                 <div class="score-bar">
-                  <div class="score-fill" :style="{ width: `${(assignment.score / assignment.total_points) * 100}%` }"></div>
+                  <div class="score-fill" :style="{ width: assignment.total_points > 0 ? `${(assignment.score / assignment.total_points) * 100}%` : '0%' }"></div>
                 </div>
               </div>
               <router-link v-else :to="`/student/assignment/${assignment.assignment_id}`" class="btn btn-primary btn-play">
@@ -261,7 +261,7 @@ const isOverdue = (dateStr) => {
 
 const isDueSoon = (assignment) => {
   const h = dueInHours(assignment.due_date)
-  return h >= 0 && h <= 48
+  return h >= 0 && h <= 24
 }
 
 const statusLabel = (assignment) => {

@@ -288,8 +288,8 @@
             <div class="class-card-body">
               <p class="pupils-count">👥 <strong>{{ cls.student_count || 0 }}</strong> pupils enrolled</p>
               <div class="class-code-row" style="margin: 8px 0; display: flex; align-items: center; gap: 8px;">
-                <code style="font-size: 11px; background: var(--primary-light); color: var(--primary); padding: 2px 6px; border-radius: 4px;">{{ cls.id.slice(0, 8) }}...</code>
-                <button @click.stop="copyClassCode(cls.id)" class="btn-sm" style="font-size: 11px; padding: 2px 8px; background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary); border-radius: 4px; cursor: pointer; min-height: auto; box-shadow: none;">Copy Code</button>
+                <code style="font-size: 11px; background: var(--primary-light); color: var(--primary); padding: 2px 6px; border-radius: 4px;">{{ cls.class_code }}</code>
+                <button @click.stop="copyClassCode(cls.class_code)" class="btn-sm" style="font-size: 11px; padding: 2px 8px; background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary); border-radius: 4px; cursor: pointer; min-height: auto; box-shadow: none;">Copy Code</button>
               </div>
               <span class="text-link">View Progress Matrix & Roster →</span>
             </div>
@@ -1867,11 +1867,11 @@ const deleteAssignmentItem = async (assignmentId, worksheetId) => {
 }
 
 // ─── Copy Class Code ──────────────────────────────────────────────────────────
-const copyClassCode = (classId) => {
-  navigator.clipboard.writeText(classId).then(() => {
+const copyClassCode = (classCode) => {
+  navigator.clipboard.writeText(classCode).then(() => {
     alert('Class code copied to clipboard!')
   }).catch(() => {
-    prompt('Copy this class code:', classId)
+    prompt('Copy this class code:', classCode)
   })
 }
 
