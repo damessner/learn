@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'learnflow-backend',
-      script: './backend/server.js',
-      cwd: '/var/www/learnflow',
+      script: './server.js',
+      cwd: '/var/www/learnflow/backend',
       instances: 1,
       autorestart: true,
       watch: false,

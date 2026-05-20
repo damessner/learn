@@ -60,8 +60,6 @@ cp -r "$PROJECT_ROOT/deployment" /var/www/learnflow/
 mkdir -p /var/www/learnflow/db
 mkdir -p /var/www/learnflow/backend/uploads
 
-# Set correct ownership
-chown -R www-data:www-data /var/www/learnflow
 
 # Setup Backend
 echo -e "${BLUE}[5/7] Installing backend dependencies & initializing database...${NC}"
@@ -100,6 +98,10 @@ cd /var/www/learnflow/frontend
 rm -rf node_modules
 npm install
 npm run build
+
+# Ensure all files and generated assets have the correct ownership
+echo -e "${BLUE}Setting correct file ownership...${NC}"
+chown -R www-data:www-data /var/www/learnflow
 
 # Configure Nginx
 echo -e "${BLUE}[7/7] Configuring Nginx reverse proxy...${NC}"
