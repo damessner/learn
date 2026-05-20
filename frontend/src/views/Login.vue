@@ -162,25 +162,25 @@ const loginWithMicrosoft = async () => {
   error.value = null
   try {
     const mockMSData = {
-      msId: 'ms_demo_user_' + Math.random().toString(36).substr(2, 9),
       name: 'Test Student',
-      email: 'student@school.local',
-      role: 'student'
+      email: 'student@school.local'
     }
 
     const promptName = prompt("Enter name to login with (Type 'Teacher' or 'Admin' to login as educator, or press Enter for 'Test Student'):")
     if (promptName) {
       mockMSData.name = promptName
       mockMSData.email = promptName.toLowerCase().replace(/\s+/g, '') + '@school.local'
-      if (promptName.toLowerCase().includes('teacher') || promptName.toLowerCase().includes('admin')) {
-        mockMSData.role = 'teacher'
-      }
     }
 
     const resp = await fetch(`${API_BASE}/auth/microsoft`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(mockMSData)
+      body: JSON.stringify({
+        fallbackName: mockMSData.name,
+        fallbackEmail: mockMSData.email,
+        name: mockMSData.name,
+        email: mockMSData.email
+      })
     })
 
     if (!resp.ok) throw new Error('Microsoft login server error')
