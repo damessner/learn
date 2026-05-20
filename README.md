@@ -114,7 +114,7 @@ This script is run directly on your Proxmox VE host node. It automates template 
 1. SSH into your Proxmox VE host (as root).
 2. Run the one-liner command:
    ```bash
-   bash -c "$(curl -sSL https://raw.githubusercontent.com/damessner/learn/main/deployment/create-lxc.sh)"
+   bash -c "$(curl -sSL -H "Cache-Control: no-cache" https://raw.githubusercontent.com/damessner/learn/main/deployment/create-lxc.sh)"
    ```
 3. Follow the prompts (or press `Enter` to accept the defaults). The script will:
    - Check if the chosen Container ID exists and prompt you if it needs to be recreated.
