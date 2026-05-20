@@ -77,7 +77,7 @@ if [ ! -f .env ]; then
   sed -i "s/JWT_SECRET=change_this_to_a_long_random_string_minimum_32_chars/JWT_SECRET=$SECURE_JWT/" .env
   
   # Detect container IP to set BASE_URL
-  IP_ADDR=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1 || echo "localhost")
+  IP_ADDR=$(hostname -I | awk '{print $1}' || echo "localhost")
   sed -i "s|BASE_URL=https://your-school-server.com|BASE_URL=http://$IP_ADDR|" .env
   
   chown www-data:www-data .env

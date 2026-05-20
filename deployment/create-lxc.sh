@@ -142,7 +142,7 @@ echo -e "${BLUE}Running automated LXC setup script...${NC}"
 pct exec "$CTID" -- bash /opt/learnflow/deployment/setup-lxc.sh
 
 # 8. Retrieve Container IP
-IP_ADDR=$(pct exec "$CTID" -- ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n 1 || true)
+IP_ADDR=$(pct exec "$CTID" -- hostname -I | awk '{print $1}' || true)
 if [ -z "$IP_ADDR" ]; then
   IP_ADDR="<container-ip>"
 fi
