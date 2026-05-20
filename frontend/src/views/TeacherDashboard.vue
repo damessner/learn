@@ -17,12 +17,12 @@
     <!-- Main Navigation tabs -->
     <div class="tabs">
       <button 
-        v-for="tab in ['worksheets', 'assignments', 'classes', 'templates']" 
+        v-for="tab in availableTabs" 
         :key="tab"
         @click="switchTab(tab)"
         :class="['tab-btn', { active: activeTab === tab }]"
       >
-        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : 'Templates Library' }}
+        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : tab === 'templates' ? 'Templates Library' : 'System Settings ⚙️' }}
       </button>
     </div>
     <!-- Worksheets Tab -->
@@ -296,6 +296,218 @@
             </button>
           </div>
         </div>
+        </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div v-if="activeTab === 'settings'" class="tab-content">
+      <div class="settings-overview">
+        <div class="section-actions-header">
+          <h2>System Settings & User Management</h2>
+          <p class="subtitle">Configure system-wide settings, authentication rules, and manage user accounts.</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Auth Configuration Card -->
+          <div class="settings-card card glass" style="margin-bottom: 24px;">
+            <h3>Authentication Configuration</h3>
+            <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">
+              Control how educators and students log in to the portal.
+            </p>
+            
+            <form @submit.prevent="saveAuthSettings" class="settings-form">
+              <div class="form-group">
+                <label style="display: block; margin-bottom: 12px; font-weight: 500;">Authentication Mode</label>
+                <div class="radio-group" style="display: flex; flex-direction: column; gap: 12px;">
+                  <label class="radio-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                    <input type="radio" value="local" v-model="settingsForm.auth_mode" style="margin-top: 4px;" />
+                    <span class="radio-text">
+                      <strong style="display: block; font-size: 0.95rem;">Local Credentials (Default)</strong>
+                      <span class="help-text" style="display: block; font-size: 0.8rem; color: var(--text-muted);">Users login with a local username/email and password.</span>
+                    </span>
+                  </label>
+                  <label class="radio-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                    <input type="radio" value="microsoft" v-model="settingsForm.auth_mode" style="margin-top: 4px;" />
+                    <span class="radio-text">
+                      <strong style="display: block; font-size: 0.95rem;">Microsoft Entra ID (SSO)</strong>
+                      <span class="help-text" style="display: block; font-size: 0.8rem; color: var(--text-muted);">Users login via school Microsoft 365 Single Sign-On.</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="settings-action" style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary" :disabled="savingSettings">
+                  {{ savingSettings ? 'Saving...' : 'Save Configuration 💾' }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- User Management Card -->
+          <div class="settings-card card glass user-management-card">
+            <div class="card-header-flex" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+              <div>
+                <h3>User Accounts Roster</h3>
+                <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">
+                  Create and modify accounts for students, teachers, and admins.
+                </p>
+              </div>
+              <button @click="openCreateUserModal" class="btn btn-primary btn-sm">
+                Register New User 👤
+              </button>
+            </div>
+
+            <div class="search-bar-container" style="margin-bottom: 16px;">
+              <input 
+                type="text" 
+                v-model="userSearchQuery" 
+                placeholder="Search name, username, or email..." 
+                class="form-control"
+                style="width: 100%; max-width: 400px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);"
+              />
+            </div>
+
+            <div class="table-container" style="overflow-x: auto; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid var(--border-color);">
+              <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02);">
+                    <th style="padding: 12px 16px;">Name</th>
+                    <th style="padding: 12px 16px;">Username / Email</th>
+                    <th style="padding: 12px 16px;">Role</th>
+                    <th style="padding: 12px 16px;">Last Login</th>
+                    <th style="padding: 12px 16px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="usr in filteredUsers" :key="usr.id" style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 12px 16px;">
+                      <strong>{{ usr.name }}</strong>
+                      <span v-if="usr.id === currentUser?.id" class="badge badge-success" style="margin-left: 8px; background: #28a745; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; color: white;">You</span>
+                    </td>
+                    <td style="padding: 12px 16px;">
+                      <div class="user-meta-field" style="font-size: 0.85rem; color: var(--text-color);">👤 {{ usr.username || 'N/A' }}</div>
+                      <div class="user-meta-field" style="font-size: 0.85rem; color: var(--text-muted);">✉️ {{ usr.email || 'N/A' }}</div>
+                    </td>
+                    <td style="padding: 12px 16px;">
+                      <span :class="['badge', usr.role === 'admin' ? 'badge-danger' : usr.role === 'teacher' ? 'badge-success' : 'badge-info']" style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                        {{ usr.role }}
+                      </span>
+                    </td>
+                    <td style="padding: 12px 16px; font-size: 0.85rem; color: var(--text-muted);">
+                      {{ usr.last_login ? new Date(usr.last_login).toLocaleString() : 'Never' }}
+                    </td>
+                    <td style="padding: 12px 16px;">
+                      <div class="action-buttons-cell" style="display: flex; gap: 8px;">
+                        <button @click="openEditUserModal(usr)" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.8rem;">Edit</button>
+                        <button @click="openChangePasswordModal(usr)" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.8rem;">Password</button>
+                        <button 
+                          v-if="usr.id !== currentUser?.id" 
+                          @click="deleteUserAccount(usr)" 
+                          class="btn btn-danger btn-sm"
+                          style="padding: 4px 8px; font-size: 0.8rem; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                        >Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="filteredUsers.length === 0">
+                    <td colspan="5" class="text-center" style="padding: 24px; text-align: center; color: var(--text-muted);">No users match your search.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create / Register User Modal (Admin Settings) -->
+    <div v-if="showCreateUserModal" class="modal-overlay">
+      <div class="modal card">
+        <h2>Register New Account</h2>
+        <form @submit.prevent="createUserAccount" class="modal-form">
+          <div class="form-group">
+            <label>Display Name</label>
+            <input type="text" v-model="createUserForm.name" placeholder="e.g. Marie Meier" required />
+          </div>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" v-model="createUserForm.username" placeholder="e.g. mariemeier" required />
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" v-model="createUserForm.email" placeholder="e.g. marie@school.com" required />
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" v-model="createUserForm.password" placeholder="Enter password (default: learnflow123)" />
+          </div>
+          <div class="form-group">
+            <label>System Role</label>
+            <select v-model="createUserForm.role" class="form-select">
+              <option value="student">Student (Pupil)</option>
+              <option value="teacher">Teacher (Educator)</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          <div class="modal-buttons">
+            <button type="button" @click="showCreateUserModal = false" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="savingUser">Register User</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit User Account Modal (Admin Settings) -->
+    <div v-if="showEditUserModal" class="modal-overlay">
+      <div class="modal card">
+        <h2>Edit Account Profile</h2>
+        <form @submit.prevent="updateUserAccount" class="modal-form">
+          <div class="form-group">
+            <label>Display Name</label>
+            <input type="text" v-model="editUserForm.name" required />
+          </div>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" v-model="editUserForm.username" required />
+          </div>
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" v-model="editUserForm.email" required />
+          </div>
+          <div class="form-group">
+            <label>System Role</label>
+            <select v-model="editUserForm.role" class="form-select">
+              <option value="student">Student (Pupil)</option>
+              <option value="teacher">Teacher (Educator)</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          <div class="modal-buttons">
+            <button type="button" @click="showEditUserModal = false" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="savingUser">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Change Password Modal (Admin Settings) -->
+    <div v-if="showChangePasswordModal" class="modal-overlay">
+      <div class="modal card">
+        <h2>Reset Account Password</h2>
+        <p class="subtitle" style="margin-top: -10px; margin-bottom: 20px;">
+          Set a new login password for user <strong>{{ selectedUserForPassword?.name }}</strong>.
+        </p>
+        <form @submit.prevent="changeUserPassword" class="modal-form">
+          <div class="form-group">
+            <label>New Password</label>
+            <input type="password" v-model="newUserPassword" placeholder="Enter new password" required />
+          </div>
+          <div class="modal-buttons">
+            <button type="button" @click="showChangePasswordModal = false" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="savingUser">Change Password</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -470,6 +682,43 @@ const loading = ref(true)
 const error = ref(null)
 const activeTab = ref('worksheets')
 
+const currentUser = ref(null)
+
+// Computed availableTabs based on role
+const availableTabs = computed(() => {
+  const tabs = ['worksheets', 'assignments', 'classes', 'templates']
+  if (currentUser.value && currentUser.value.role === 'admin') {
+    tabs.push('settings')
+  }
+  return tabs
+})
+
+// Settings State
+const settingsForm = ref({ auth_mode: 'local' })
+const savingSettings = ref(false)
+const usersList = ref([])
+const userSearchQuery = ref('')
+
+const showCreateUserModal = ref(false)
+const createUserForm = ref({ name: '', username: '', email: '', role: 'student', password: '' })
+const showEditUserModal = ref(false)
+const editUserForm = ref({ id: '', name: '', username: '', email: '', role: 'student' })
+const showChangePasswordModal = ref(false)
+const selectedUserForPassword = ref(null)
+const newUserPassword = ref('')
+const savingUser = ref(false)
+
+// Filter users list by query
+const filteredUsers = computed(() => {
+  const query = userSearchQuery.value.trim().toLowerCase()
+  if (!query) return usersList.value
+  return usersList.value.filter(usr => {
+    return (usr.name || '').toLowerCase().includes(query) ||
+           (usr.username || '').toLowerCase().includes(query) ||
+           (usr.email || '').toLowerCase().includes(query)
+  })
+})
+
 const showAssignModal = ref(false)
 const selectedSheet = ref(null)
 const assignForm = ref({ class_name: '', class_id: '', due_date: '' })
@@ -505,6 +754,9 @@ const fetchData = async () => {
   error.value = null
   const token = localStorage.getItem('token')
   try {
+    // Determine current user
+    currentUser.value = JSON.parse(localStorage.getItem('user') || 'null')
+
     // Worksheets
     const wsResp = await fetch(`${API_BASE}/worksheets`, {
       headers: { 'Authorization': `Bearer ${token}` }
@@ -529,10 +781,182 @@ const fetchData = async () => {
 
     // Classes
     await fetchClasses()
+
+    // Load admin settings/users if admin role
+    if (currentUser.value && currentUser.value.role === 'admin') {
+      await fetchAdminSettings()
+      await fetchAdminUsers()
+    }
   } catch (err) {
     error.value = err.message
   } finally {
     loading.value = false
+  }
+}
+
+// ─── Settings & User Management Actions ──────────────────────────────────────────
+const fetchAdminSettings = async () => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/auth/settings`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      settingsForm.value = { auth_mode: data.auth_mode || 'local' }
+    }
+  } catch (err) {
+    console.error('Failed to fetch settings:', err)
+  }
+}
+
+const fetchAdminUsers = async () => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/auth/users`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      usersList.value = await res.json()
+    }
+  } catch (err) {
+    console.error('Failed to fetch users:', err)
+  }
+}
+
+const saveAuthSettings = async () => {
+  savingSettings.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/auth/settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(settingsForm.value)
+    })
+    if (!res.ok) throw new Error('Failed to save settings')
+    alert('System settings saved successfully!')
+  } catch (err) {
+    alert(err.message)
+  } finally {
+    savingSettings.value = false
+  }
+}
+
+const openCreateUserModal = () => {
+  createUserForm.value = { name: '', username: '', email: '', role: 'student', password: '' }
+  showCreateUserModal.value = true
+}
+
+const createUserAccount = async () => {
+  savingUser.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/auth/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(createUserForm.value)
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error || 'Failed to create user')
+    }
+    showCreateUserModal.value = false
+    alert('User registered successfully!')
+    await fetchAdminUsers()
+  } catch (err) {
+    alert(err.message)
+  } finally {
+    savingUser.value = false
+  }
+}
+
+const openEditUserModal = (usr) => {
+  editUserForm.value = {
+    id: usr.id,
+    name: usr.name,
+    username: usr.username || '',
+    email: usr.email || '',
+    role: usr.role
+  }
+  showEditUserModal.value = true
+}
+
+const updateUserAccount = async () => {
+  savingUser.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/auth/users/${editUserForm.value.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(editUserForm.value)
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error || 'Failed to update user')
+    }
+    showEditUserModal.value = false
+    alert('User profile updated!')
+    await fetchAdminUsers()
+  } catch (err) {
+    alert(err.message)
+  } finally {
+    savingUser.value = false
+  }
+}
+
+const openChangePasswordModal = (usr) => {
+  selectedUserForPassword.value = usr
+  newUserPassword.value = ''
+  showChangePasswordModal.value = true
+}
+
+const changeUserPassword = async () => {
+  savingUser.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/auth/users/${selectedUserForPassword.value.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ password: newUserPassword.value })
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error || 'Failed to change password')
+    }
+    showChangePasswordModal.value = false
+    alert('Password updated successfully!')
+  } catch (err) {
+    alert(err.message)
+  } finally {
+    savingUser.value = false
+  }
+}
+
+const deleteUserAccount = async (usr) => {
+  if (!confirm(`Are you sure you want to permanently delete the account of ${usr.name}?`)) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/auth/users/${usr.id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to delete user account')
+    alert('User account deleted!')
+    await fetchAdminUsers()
+  } catch (err) {
+    alert(err.message)
   }
 }
 
@@ -555,6 +979,9 @@ const switchTab = async (tab) => {
     await fetchClasses()
   } else if (tab === 'templates') {
     await fetchTemplates()
+  } else if (tab === 'settings') {
+    await fetchAdminSettings()
+    await fetchAdminUsers()
   }
 }
 

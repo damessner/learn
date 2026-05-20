@@ -1,25 +1,34 @@
 const Database = require('better-sqlite3');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const crypto = require('crypto');
 
 const DB_PATH = process.env.DB_PATH || './db/learnflow.db';
 const db = new Database(DB_PATH);
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
 
 function seed() {
   console.log('🌱 Seeding database...');
 
   // 1. Create or verify Users
   const teacherId = 'teacher_demo_id';
+  const teacherPassHash = hashPassword('teacher123');
   db.prepare(`
-    INSERT OR REPLACE INTO users (id, ms_id, name, email, role)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(teacherId, null, 'Jane Teacher', 'teacher@school.local', 'teacher');
+    INSERT OR REPLACE INTO users (id, ms_id, username, password_hash, name, email, role)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(teacherId, null, 'teacher', teacherPassHash, 'Jane Teacher', 'teacher@school.local', 'teacher');
 
   const studentId = 'student_demo_id';
+  const studentPassHash = hashPassword('student123');
   db.prepare(`
-    INSERT OR REPLACE INTO users (id, ms_id, name, email, role)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(studentId, null, 'Marie Meier', 'student@school.local', 'student');
+    INSERT OR REPLACE INTO users (id, ms_id, username, password_hash, name, email, role)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(studentId, null, 'student', studentPassHash, 'Marie Meier', 'student@school.local', 'student');
 
   // 2. Create a pre-built Worksheet with all 5 exercise types
   const worksheetId = 'worksheet_demo_id';

@@ -1,7 +1,7 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
-const { requireAuth, requireRole } = require('./auth');
+const { requireAuth, requireRole, hashPassword } = require('./auth');
 
 const router = express.Router();
 
@@ -242,7 +242,7 @@ router.get('/:id/progress', (req, res) => {
 
 // ─── Create Student/User Manually ─────────────────────────────────────────────
 router.post('/students/manual', (req, res) => {
-  const { name, email, role, class_id } = req.body;
+  const { name, email, username, role, class_id, password } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Name is required' });
   }
@@ -258,7 +258,7 @@ router.post('/students/manual', (req, res) => {
   try {
     const db = getDB();
     
-    // Check if user already exists
+    // Check if user already exists by email
     const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase());
     if (existing) {
       if (class_id) {
@@ -272,11 +272,20 @@ router.post('/students/manual', (req, res) => {
       return res.status(400).json({ error: 'A user with this email is already registered.' });
     }
 
+    const userUsername = username ? username.trim() : email.trim().toLowerCase().split('@')[0];
+    const existingUsername = db.prepare('SELECT * FROM users WHERE username = ?').get(userUsername);
+    if (existingUsername) {
+      return res.status(400).json({ error: 'A user with this username is already registered.' });
+    }
+
+    const userPassword = password || 'learnflow123';
+    const passHash = hashPassword(userPassword);
+
     const userId = uuidv4();
     db.prepare(`
-      INSERT INTO users (id, ms_id, name, email, role)
-      VALUES (?, NULL, ?, ?, ?)
-    `).run(userId, name.trim(), email.trim().toLowerCase(), userRole);
+      INSERT INTO users (id, ms_id, username, password_hash, name, email, role)
+      VALUES (?, NULL, ?, ?, ?, ?, ?)
+    `).run(userId, userUsername, passHash, name.trim(), email.trim().toLowerCase(), userRole);
 
     if (userRole === 'student' && class_id) {
       db.prepare(`
@@ -285,7 +294,7 @@ router.post('/students/manual', (req, res) => {
       `).run(class_id, userId);
     }
 
-    const newUser = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    const newUser = db.prepare('SELECT id, name, email, username, role FROM users WHERE id = ?').get(userId);
     res.status(201).json(newUser);
   } catch (err) {
     res.status(500).json({ error: err.message });

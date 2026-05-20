@@ -12,7 +12,39 @@
       </div>
 
       <div class="login-options">
-        <div class="option-card microsoft-login">
+        <!-- Local Login Form (Default) -->
+        <div v-if="authMode === 'local'" class="option-card local-login">
+          <h2>Sign In</h2>
+          <p>Sign in with your local account credentials.</p>
+          <form @submit.prevent="loginLocal" class="local-form">
+            <div class="form-group">
+              <label for="username">Username or Email</label>
+              <input 
+                id="username"
+                type="text" 
+                v-model="localUsername" 
+                placeholder="e.g. admin or student" 
+                required 
+              />
+            </div>
+            <div class="form-group">
+              <label for="password">Password</label>
+              <input 
+                id="password"
+                type="password" 
+                v-model="localPassword" 
+                placeholder="Enter password" 
+                required 
+              />
+            </div>
+            <button type="submit" :disabled="loading" class="btn btn-primary btn-block">
+              Sign In 🔑
+            </button>
+          </form>
+        </div>
+
+        <!-- Microsoft Teams Login -->
+        <div v-else-if="authMode === 'microsoft'" class="option-card microsoft-login">
           <h2>Microsoft Teams Login</h2>
           <p>Sign in with your school Microsoft 365 account to access your assigned work.</p>
           <button @click="loginWithMicrosoft" :disabled="loading" class="btn btn-primary btn-block">
@@ -32,7 +64,7 @@
 
         <div class="option-card guest-login">
           <h2>Join with Assignment Code</h2>
-          <p>No Microsoft login? Enter your name and assignment code directly.</p>
+          <p>No account? Enter your name and assignment code directly.</p>
           <form @submit.prevent="loginAsGuest" class="guest-form">
             <div class="form-group">
               <label for="studentName">Your Name</label>
@@ -65,24 +97,70 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const loading = ref(false)
 const error = ref(null)
+const authMode = ref('local')
+const localUsername = ref('')
+const localPassword = ref('')
 const guestName = ref('')
 const guestCode = ref('')
 
 const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
 
+const fetchConfig = async () => {
+  try {
+    const resp = await fetch(`${API_BASE}/auth/config`)
+    if (resp.ok) {
+      const data = await resp.json()
+      authMode.value = data.authMode
+    }
+  } catch (err) {
+    console.error('Failed to fetch auth configuration', err)
+  }
+}
+
+onMounted(() => {
+  fetchConfig()
+})
+
+const loginLocal = async () => {
+  loading.value = true
+  error.value = null
+  try {
+    const resp = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: localUsername.value,
+        password: localPassword.value
+      })
+    })
+
+    if (!resp.ok) {
+      const errData = await resp.json()
+      throw new Error(errData.error || 'Invalid username or password')
+    }
+
+    const data = await resp.json()
+    localStorage.setItem('token', data.token)
+    localStorage.setItem('user', JSON.stringify(data.user))
+
+    router.push(data.user.role === 'student' ? '/student' : '/teacher')
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    loading.value = false
+  }
+}
+
 const loginWithMicrosoft = async () => {
   loading.value = true
   error.value = null
   try {
-    // In production, we'd use MSAL.js here.
-    // For demonstration and fallback, we trigger a mock/dev token exchange
-    // with backend which will create a demo teacher/student user if Microsoft configuration is not fully active.
     const mockMSData = {
       msId: 'ms_demo_user_' + Math.random().toString(36).substr(2, 9),
       name: 'Test Student',
@@ -90,7 +168,6 @@ const loginWithMicrosoft = async () => {
       role: 'student'
     }
 
-    // Check if the user is a teacher (for easy local testing, any name with "teacher" or "admin" becomes teacher)
     const promptName = prompt("Enter name to login with (Type 'Teacher' or 'Admin' to login as educator, or press Enter for 'Test Student'):")
     if (promptName) {
       mockMSData.name = promptName

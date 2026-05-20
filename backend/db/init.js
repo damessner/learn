@@ -1,10 +1,17 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const DB_PATH = process.env.DB_PATH || './db/learnflow.db';
 
 let db;
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
 
 function getDB() {
   if (!db) {
@@ -27,6 +34,8 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       ms_id TEXT UNIQUE,
+      username TEXT UNIQUE,
+      password_hash TEXT,
       name TEXT NOT NULL,
       email TEXT,
       role TEXT NOT NULL DEFAULT 'student' CHECK(role IN ('teacher','student','admin')),
@@ -102,20 +111,50 @@ async function initDB() {
       PRIMARY KEY (class_id, student_id)
     );
 
+    -- Settings
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_assignments_worksheet_id ON assignments(worksheet_id);
     CREATE INDEX IF NOT EXISTS idx_assignments_class_id ON assignments(class_id);
     CREATE INDEX IF NOT EXISTS idx_submissions_assignment_submitted_at ON submissions(assignment_id, submitted_at);
     CREATE INDEX IF NOT EXISTS idx_class_students_student_id ON class_students(student_id);
   `);
 
+  // Migrate existing databases to have username/password_hash if they were created before
+  try {
+    database.exec("ALTER TABLE users ADD COLUMN username TEXT;");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);");
+  } catch (e) {
+    // Index already exists
+  }
+  try {
+    database.exec("ALTER TABLE users ADD COLUMN password_hash TEXT;");
+  } catch (e) {
+    // Column already exists
+  }
+
+  // Seed default settings
+  database.prepare(`
+    INSERT OR IGNORE INTO settings (key, value)
+    VALUES ('auth_mode', 'local')
+  `).run();
+
   // Seed a default admin/teacher if none exists
   const existing = database.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('admin');
   if (!existing) {
     const { v4: uuidv4 } = require('uuid');
+    const adminPassHash = hashPassword('admin123');
     database.prepare(`
-      INSERT OR IGNORE INTO users (id, ms_id, name, email, role)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(uuidv4(), null, 'Administrator', 'admin@school.local', 'admin');
+      INSERT OR IGNORE INTO users (id, ms_id, username, password_hash, name, email, role)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(uuidv4(), null, 'admin', adminPassHash, 'Administrator', 'admin@school.local', 'admin');
   }
 
   console.log('✅ Database initialized at', DB_PATH);

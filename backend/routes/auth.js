@@ -29,6 +29,81 @@ function safeSecretEquals(expected, provided) {
   return crypto.timingSafeEqual(expectedBuf, providedBuf);
 }
 
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedHash) {
+  if (!storedHash) return false;
+  const [salt, hash] = storedHash.split(':');
+  if (!salt || !hash) return false;
+  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === verifyHash;
+}
+
+// ─── Public Config Endpoint ───────────────────────────────────────────────
+router.get('/config', (req, res) => {
+  try {
+    const db = getDB();
+    const setting = db.prepare("SELECT value FROM settings WHERE key = 'auth_mode'").get();
+    const authMode = setting ? setting.value : 'local';
+    res.json({ authMode });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Local Login Endpoint ───────────────────────────────────────────────
+router.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  try {
+    const db = getDB();
+    
+    // First, verify that local login is the active auth mode
+    const setting = db.prepare("SELECT value FROM settings WHERE key = 'auth_mode'").get();
+    const authMode = setting ? setting.value : 'local';
+    if (authMode !== 'local') {
+      return res.status(400).json({ error: 'Local login is disabled. Please use Microsoft Sign In.' });
+    }
+
+    // Search by username or email
+    const trimmedUser = username.trim().toLowerCase();
+    const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(username.trim(), trimmedUser);
+    
+    if (!user || !user.password_hash) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    if (!verifyPassword(password, user.password_hash)) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // Issue JWT
+    const token = jwt.sign(
+      { userId: user.id, name: user.name, role: user.role, username: user.username },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES }
+    );
+
+    // Update last login
+    db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
+
+    res.json({
+      token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, username: user.username }
+    });
+  } catch (err) {
+    console.error('[AUTH] Local login error:', err);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
+});
+
 // ─── Microsoft OAuth2 callback ───────────────────────────────────────────────
 // After MSAL client-side auth, the frontend sends us the id_token.
 // We verify it and create/update the user in our DB.
@@ -177,11 +252,158 @@ router.patch('/users/:id/role', requireAuth, requireRole('admin'), (req, res) =>
   res.json({ success: true });
 });
 
-// ─── List all users (admin only) ──────────────────────────────────────────────
+// ─── List all users (admin/teacher only) ──────────────────────────────────────────────
 router.get('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) => {
   const db = getDB();
-  const users = db.prepare('SELECT id, name, email, role, created_at, last_login FROM users ORDER BY name').all();
+  const users = db.prepare('SELECT id, name, email, username, role, created_at, last_login FROM users ORDER BY name').all();
   res.json(users);
+});
+
+// ─── Create User (admin/teacher only) ──────────────────────────────────────────
+router.post('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) => {
+  const { name, email, username, role, password } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  if (!role || !['student', 'teacher', 'admin'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  
+  // Only admin can create another admin or teacher
+  if (role !== 'student' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only administrators can create educators or admins.' });
+  }
+
+  try {
+    const db = getDB();
+    
+    // Verify username/email unique
+    if (username && username.trim()) {
+      const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username.trim());
+      if (existingUser) return res.status(400).json({ error: 'Username already in use' });
+    }
+    if (email && email.trim()) {
+      const existingEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
+      if (existingEmail) return res.status(400).json({ error: 'Email already in use' });
+    }
+
+    const id = uuidv4();
+    const passHash = password ? hashPassword(password) : hashPassword('learnflow123');
+    
+    db.prepare(`
+      INSERT INTO users (id, ms_id, username, password_hash, name, email, role)
+      VALUES (?, NULL, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      username ? username.trim() : null,
+      passHash,
+      name.trim(),
+      email ? email.trim().toLowerCase() : null,
+      role
+    );
+
+    const user = db.prepare('SELECT id, name, email, username, role FROM users WHERE id = ?').get(id);
+    res.status(201).json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Update User (admin/teacher only) ──────────────────────────────────────────
+router.put('/users/:id', requireAuth, requireRole('admin', 'teacher'), (req, res) => {
+  const { name, email, username, role, password } = req.body;
+  
+  try {
+    const db = getDB();
+    const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+
+    // Role protection
+    if (targetUser.role === 'admin' && req.user.userId !== targetUser.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized to edit admin user' });
+    }
+    if (role && role !== targetUser.role && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can modify user roles' });
+    }
+
+    // Uniqueness checks
+    if (username && username.trim() && username.trim() !== targetUser.username) {
+      const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username.trim());
+      if (existingUser) return res.status(400).json({ error: 'Username already in use' });
+    }
+    if (email && email.trim() && email.trim().toLowerCase() !== targetUser.email) {
+      const existingEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
+      if (existingEmail) return res.status(400).json({ error: 'Email already in use' });
+    }
+
+    const updatedRole = role || targetUser.role;
+    const updatedName = name ? name.trim() : targetUser.name;
+    const updatedEmail = email !== undefined ? (email ? email.trim().toLowerCase() : null) : targetUser.email;
+    const updatedUsername = username !== undefined ? (username ? username.trim() : null) : targetUser.username;
+
+    if (password) {
+      const newHash = hashPassword(password);
+      db.prepare(`
+        UPDATE users 
+        SET name = ?, email = ?, username = ?, role = ?, password_hash = ?
+        WHERE id = ?
+      `).run(updatedName, updatedEmail, updatedUsername, updatedRole, newHash, req.params.id);
+    } else {
+      db.prepare(`
+        UPDATE users 
+        SET name = ?, email = ?, username = ?, role = ?
+        WHERE id = ?
+      `).run(updatedName, updatedEmail, updatedUsername, updatedRole, req.params.id);
+    }
+
+    const user = db.prepare('SELECT id, name, email, username, role FROM users WHERE id = ?').get(req.params.id);
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Delete User (admin only) ─────────────────────────────────────────────────
+router.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
+  if (req.params.id === req.user.userId) {
+    return res.status(400).json({ error: 'Cannot delete your own admin account.' });
+  }
+  try {
+    const db = getDB();
+    db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Get Settings (admin only) ────────────────────────────────────────────────
+router.get('/settings', requireAuth, requireRole('admin'), (req, res) => {
+  try {
+    const db = getDB();
+    const settings = db.prepare('SELECT * FROM settings').all();
+    const settingsObj = {};
+    settings.forEach(s => {
+      settingsObj[s.key] = s.value;
+    });
+    res.json(settingsObj);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Update Settings (admin only) ─────────────────────────────────────────────
+router.post('/settings', requireAuth, requireRole('admin'), (req, res) => {
+  const updates = req.body;
+  try {
+    const db = getDB();
+    const updateStmt = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+    const transaction = db.transaction((items) => {
+      for (const [key, val] of Object.entries(items)) {
+        updateStmt.run(key, String(val));
+      }
+    });
+    transaction(updates);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
@@ -210,3 +432,4 @@ function requireRole(...roles) {
 module.exports = router;
 module.exports.requireAuth = requireAuth;
 module.exports.requireRole = requireRole;
+module.exports.hashPassword = hashPassword;
