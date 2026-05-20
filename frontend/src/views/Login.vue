@@ -115,8 +115,13 @@ const fetchConfig = async () => {
   try {
     const resp = await fetch(`${API_BASE}/auth/config`)
     if (resp.ok) {
-      const data = await resp.json()
-      authMode.value = data.authMode
+      const contentType = resp.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await resp.json()
+        authMode.value = data.authMode
+      } else {
+        console.warn('Config endpoint returned non-JSON response');
+      }
     }
   } catch (err) {
     console.error('Failed to fetch auth configuration', err)
@@ -141,8 +146,19 @@ const loginLocal = async () => {
     })
 
     if (!resp.ok) {
-      const errData = await resp.json()
-      throw new Error(errData.error || 'Invalid username or password')
+      let errorMessage = 'Invalid username or password';
+      const contentType = resp.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errData = await resp.json();
+          errorMessage = errData.error || errorMessage;
+        } catch (e) {
+          // Ignore parse errors
+        }
+      } else {
+        errorMessage = `Server error (${resp.status}). The backend might be unavailable.`;
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await resp.json()
@@ -211,8 +227,19 @@ const loginAsGuest = async () => {
     })
 
     if (!resp.ok) {
-      const errData = await resp.json()
-      throw new Error(errData.error || 'Failed to join assignment')
+      let errorMessage = 'Failed to join assignment';
+      const contentType = resp.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errData = await resp.json();
+          errorMessage = errData.error || errorMessage;
+        } catch (e) {
+          // Ignore parse errors
+        }
+      } else {
+        errorMessage = `Server error (${resp.status}). The backend might be unavailable.`;
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await resp.json()
