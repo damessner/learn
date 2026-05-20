@@ -238,7 +238,7 @@ async function initDB() {
     // Column already exists
   }
   try {
-    database.exec("ALTER TABLE assignments ADD COLUMN retry_policy TEXT DEFAULT 'single' CHECK(retry_policy IN ('single','best','latest','capped'));");
+    database.exec("ALTER TABLE assignments ADD COLUMN retry_policy TEXT DEFAULT 'single';");
   } catch (e) {
     // Column already exists
   }

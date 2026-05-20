@@ -4,6 +4,7 @@ const { getDB } = require('../db/init');
 const { requireAuth, requireRole } = require('./auth');
 
 const router = express.Router();
+const MIN_SHORT_ANSWER_LENGTH = 20;
 
 function ensureGuestAssignmentAccess(req, res) {
   if (req.user.isGuest && String(req.user.assignmentId) !== String(req.params.assignmentId)) {
@@ -270,7 +271,7 @@ function scoreAnswers(blocks, answers) {
         const studentLower = studentText.toLowerCase();
         const keywords = buildShortAnswerKeywords(block, sampleAnswer);
         const keywordHits = keywords.filter(k => studentLower.includes(k)).length;
-        const coverage = keywords.length > 0 ? keywordHits / keywords.length : (studentText.length >= 20 ? 1 : 0);
+        const coverage = keywords.length > 0 ? keywordHits / keywords.length : (studentText.length >= MIN_SHORT_ANSWER_LENGTH ? 1 : 0);
         const earned = Math.round(Math.max(0, Math.min(1, coverage)) * blockPoints);
         score += earned;
 

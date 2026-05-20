@@ -146,7 +146,8 @@ const isSubmitted = ref(false)
 const feedbackSummary = ref(null)
 const showReview = ref(false)
 const preferredLanguage = ref(localStorage.getItem('preferredLanguage') || 'en-US')
-const readAloudEnabled = ref(localStorage.getItem('readAloudEnabled') === 'true')
+const storedReadAloud = localStorage.getItem('readAloudEnabled')
+const readAloudEnabled = ref(storedReadAloud === null ? true : storedReadAloud === 'true')
 const hintLevel = ref({})
 
 const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
@@ -287,13 +288,14 @@ const autoSave = async () => {
 
 const queueOfflineSave = (assignmentId, payloadAnswers) => {
   const queue = JSON.parse(localStorage.getItem(OFFLINE_SAVE_KEY) || '[]')
-  queue.push({
+  const deduped = queue.filter(item => item.assignmentId !== assignmentId)
+  deduped.push({
     assignmentId,
     answers: payloadAnswers,
     token: localStorage.getItem('token'),
     queuedAt: new Date().toISOString()
   })
-  localStorage.setItem(OFFLINE_SAVE_KEY, JSON.stringify(queue.slice(-MAX_OFFLINE_QUEUE_SIZE)))
+  localStorage.setItem(OFFLINE_SAVE_KEY, JSON.stringify(deduped.slice(-MAX_OFFLINE_QUEUE_SIZE)))
 }
 
 const flushOfflineSaves = async () => {

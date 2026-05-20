@@ -6,7 +6,9 @@ const { requireAuth, requireRole } = require('./auth');
 const router = express.Router();
 router.use(requireAuth);
 
-const SKILL_PASS_RATIO = 0.65;
+const SKILL_PASS_RATIO = Number.isFinite(Number(process.env.SKILL_PASS_RATIO))
+  ? Math.max(0.3, Math.min(0.95, Number(process.env.SKILL_PASS_RATIO)))
+  : 0.65;
 
 function parseJson(value, fallback = {}) {
   try {
@@ -173,7 +175,7 @@ router.get('/student/gamification', (req, res) => {
   let expected = new Date();
   expected.setHours(0, 0, 0, 0);
   for (const row of streakRows) {
-    const day = new Date(`${row.d}T00:00:00Z`);
+    const day = new Date(`${row.d}T00:00:00`);
     const delta = Math.round((expected - day) / (24 * 60 * 60 * 1000));
     if (delta === 0) {
       streak += 1;

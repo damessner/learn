@@ -833,7 +833,8 @@ const addBlock = (type) => {
   }
 
   if (!['text', 'image', 'audio'].includes(type)) {
-    baseBlock.hints = ['Think about the core concept first.', 'Use the examples from class notes.', 'Break the task into smaller steps.']
+    const subjectHint = sheet.value.subject ? `Relate your answer to ${sheet.value.subject}.` : 'Relate your answer to the lesson topic.'
+    baseBlock.hints = ['Think about the core concept first.', subjectHint, 'Break the task into smaller steps.']
   }
 
   sheet.value.blocks.push(baseBlock)
@@ -1086,19 +1087,24 @@ const saveWorksheet = async (publish = false) => {
     return
   }
 
+  const rubricLines = (sheet.value.rubricText || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+  const invalidRubricLine = rubricLines.find(line => line.split('|').length < 3)
+  if (invalidRubricLine) {
+    alert('Rubric format error. Use "name|weight|description" for each rubric line.')
+    return
+  }
   const rubric = {
-    criteria: (sheet.value.rubricText || '')
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean)
-      .map(line => {
-        const [name, weight, description] = line.split('|').map(v => (v || '').trim())
-        return {
-          name: name || 'Criterion',
-          weight: Number.isFinite(Number(weight)) ? Number(weight) : 0,
-          description: description || ''
-        }
-      })
+    criteria: rubricLines.map(line => {
+      const [name, weight, description] = line.split('|').map(v => (v || '').trim())
+      return {
+        name: name || 'Criterion',
+        weight: Number.isFinite(Number(weight)) ? Number(weight) : 0,
+        description: description || ''
+      }
+    })
   }
   const normalizedBlocks = sheet.value.blocks.map(block => {
     if (block.type !== 'short_answer') return block

@@ -28,7 +28,7 @@
         <p class="insight-value">{{ teacherAnalytics?.overview?.completedSubmissions || 0 }}</p>
       </div>
       <div class="insight-card card">
-        <h3>📈 Weakest Subject</h3>
+        <h3>📉 Lowest Performing Subject</h3>
         <p class="insight-value">{{ teacherAnalytics?.subjectPerformance?.[0]?.subject || 'N/A' }}</p>
       </div>
     </div>
