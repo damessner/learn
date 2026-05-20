@@ -188,6 +188,36 @@ function scoreAnswers(blocks, answers) {
         feedback[block.id] = { correct: matchScore === correctPairs.length, score: earned, maxScore: blockPoints };
         break;
       }
+
+      case 'vocabulary': {
+        // studentAnswer: { completed: boolean, answersMap: { pairIndex: string } }
+        const pairs = block.pairs || [];
+        const studentAnswers = (studentAnswer && studentAnswer.answersMap) ? studentAnswer.answersMap : {};
+        const isCompleted = !!(studentAnswer && studentAnswer.completed);
+
+        let vocabScore = 0;
+        pairs.forEach((pair, pIdx) => {
+          const isL2R = block.direction === 'l2r' || (block.direction === 'mixed' && pIdx % 2 === 0);
+          const correctAnswer = isL2R ? pair.r : pair.l;
+          const student = (studentAnswers[pIdx] || '').trim();
+          if (student.toLowerCase() === correctAnswer.toLowerCase() || isAcceptableVariant(student.toLowerCase(), correctAnswer.toLowerCase())) {
+            vocabScore++;
+          }
+        });
+
+        const earned = isCompleted ? blockPoints : Math.round((vocabScore / Math.max(pairs.length, 1)) * blockPoints);
+        score += earned;
+        feedback[block.id] = {
+          correct: isCompleted || vocabScore === pairs.length,
+          score: earned,
+          maxScore: blockPoints,
+          correctAnswers: pairs.map((pair, pIdx) => {
+            const isL2R = block.direction === 'l2r' || (block.direction === 'mixed' && pIdx % 2 === 0);
+            return isL2R ? pair.r : pair.l;
+          })
+        };
+        break;
+      }
     }
   }
 

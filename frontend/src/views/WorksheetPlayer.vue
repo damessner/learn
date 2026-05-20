@@ -68,6 +68,7 @@
             :feedback="feedbackSummary?.feedback?.[block.id]"
             :correctAnswers="getCorrectAnswerData(block)"
             :correctAnswer="getSingleCorrectAnswerData(block)"
+            :worksheetTitle="worksheet?.title"
           />
 
           <!-- Static Text Block -->
@@ -92,6 +93,7 @@ import SingleChoice from '../components/exercises/SingleChoice.vue'
 import Matching from '../components/exercises/Matching.vue'
 import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
+import Vocabulary from '../components/exercises/Vocabulary.vue'
 
 const route = useRoute()
 const worksheet = ref(null)
@@ -132,12 +134,14 @@ const fetchWorksheet = async () => {
     // 3. Initialize answers object
     const initialAnswers = {}
     wsData.content.blocks.forEach(block => {
-      if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching'].includes(block.type)) {
+      if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary'].includes(block.type)) {
         // Init matching structure
         if (block.type === 'multiple_choice') {
           initialAnswers[block.id] = []
         } else if (['drag_drop', 'matching'].includes(block.type)) {
           initialAnswers[block.id] = {}
+        } else if (block.type === 'vocabulary') {
+          initialAnswers[block.id] = { completed: false, answersMap: {} }
         } else if (block.type === 'gap_fill') {
           initialAnswers[block.id] = []
         } else {
@@ -249,6 +253,7 @@ const getExerciseComponent = (type) => {
     case 'multiple_choice': return MultipleChoice
     case 'single_choice': return SingleChoice
     case 'matching': return Matching
+    case 'vocabulary': return Vocabulary
     default: return null
   }
 }

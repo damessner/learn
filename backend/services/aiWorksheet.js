@@ -12,20 +12,22 @@ const ALLOWED_BLOCK_TYPES = new Set([
   'drag_drop',
   'multiple_choice',
   'single_choice',
-  'matching'
+  'matching',
+  'vocabulary'
 ]);
 
 const SYSTEM_PROMPT = [
   'You generate compact worksheet JSON for LearnFlow.',
   'Return ONLY valid JSON with shape: {"title":"","description":"","subject":"","grade_level":"","content":{"blocks":[...]}}.',
   'Keep token use low: concise text, avoid explanations.',
-  'Use only block types: text,image,audio,gap_fill,drag_drop,multiple_choice,single_choice,matching.',
+  'Use only block types: text,image,audio,gap_fill,drag_drop,multiple_choice,single_choice,matching,vocabulary.',
   'Every block must include id and type; question blocks include points integer.',
   'For gap_fill use "template" with {answer} format.',
   'For drag_drop use items[], targets[], answers object index->answer.',
   'For multiple_choice use options[] and correct[] indexes.',
   'For single_choice use options[] and correct index.',
-  'For matching use pairs as [["left","right"]].'
+  'For matching use pairs as [["left","right"]].',
+  'For vocabulary use pairs as [{"l":"EnglishWord","r":"GermanWord"}], direction as "l2r", "r2l", or "mixed", and rawText as string of "English = German" lines.'
 ].join(' ');
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
@@ -113,6 +115,17 @@ function sanitizeBlock(block, index) {
         .filter(p => Array.isArray(p) && p.length >= 2)
         .map(p => [asText(p[0]), asText(p[1])])
         .filter(p => p[0] && p[1])
+      : [];
+  }
+  if (block.type === 'vocabulary') {
+    safe.instruction = asText(block.instruction, 'Translate the vocabulary words.');
+    safe.direction = ['l2r', 'r2l', 'mixed'].includes(block.direction) ? block.direction : 'l2r';
+    safe.rawText = asText(block.rawText, '');
+    safe.pairs = Array.isArray(block.pairs)
+      ? block.pairs
+        .filter(p => p && typeof p === 'object')
+        .map(p => ({ l: asText(p.l), r: asText(p.r) }))
+        .filter(p => p.l && p.r)
       : [];
   }
 

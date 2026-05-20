@@ -69,6 +69,7 @@
             <button @click="addBlock('multiple_choice')" class="btn-add-block">☑️ Multi Choice</button>
             <button @click="addBlock('single_choice')" class="btn-add-block">🔘 Single Choice</button>
             <button @click="addBlock('matching')" class="btn-add-block">🔗 Connect Texts</button>
+            <button @click="addBlock('vocabulary')" class="btn-add-block">📖 Vocabulary</button>
           </div>
         </div>
       </div>
@@ -222,6 +223,67 @@
                 </div>
                 <button @click="addPair(block)" class="btn btn-secondary btn-sm">＋ Add Pair</button>
               </div>
+
+              <!-- Vocabulary Block Editor -->
+              <div v-if="block.type === 'vocabulary'" class="editor-row">
+                <div class="row-between">
+                  <label>Instruction</label>
+                  <div class="points-input">
+                    Points: <input type="number" v-model.number="block.points" min="1" />
+                  </div>
+                </div>
+                <input type="text" v-model="block.instruction" placeholder="e.g. Translate the vocabulary words." class="mb-2" />
+                
+                <div class="row-between mb-2">
+                  <label>Translation Direction</label>
+                  <select v-model="block.direction" class="w-xs">
+                    <option value="l2r">Show Left, Write Right</option>
+                    <option value="r2l">Show Right, Write Left</option>
+                    <option value="mixed">Mixed Directions</option>
+                  </select>
+                </div>
+
+                <label>Vocabulary List (Format: English = Deutsch, one per line)</label>
+                <textarea
+                  v-model="block.rawText"
+                  @input="parseVocabLines(block)"
+                  placeholder="apple = Apfel&#10;banana = Banane&#10;cherry = Kirsche"
+                  rows="6"
+                  class="mb-2"
+                ></textarea>
+
+                <div class="vocab-file-import mb-2">
+                  <label class="btn btn-secondary btn-sm" style="margin: 0; min-height: auto; padding: 6px 12px;">
+                    📥 Import Text/CSV File
+                    <input type="file" @change="importVocabFile($event, block)" accept=".txt,.csv" style="display: none;" />
+                  </label>
+                  <span class="field-hint">Upload a text or CSV file. Lines should be "left = right" or comma-separated.</span>
+                </div>
+
+                <!-- Parsed Words Preview -->
+                <div v-if="block.pairs && block.pairs.length > 0" class="vocab-preview-table-container">
+                  <label>Parsed Vocabulary ({{ block.pairs.length }} words)</label>
+                  <table class="vocab-preview-table">
+                    <thead>
+                      <tr>
+                        <th>Left Side (Show or Write)</th>
+                        <th>Right Side (Show or Write)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(pair, pIdx) in block.pairs.slice(0, 5)" :key="pIdx">
+                        <td>{{ pair.l }}</td>
+                        <td>{{ pair.r }}</td>
+                      </tr>
+                      <tr v-if="block.pairs.length > 5">
+                        <td colspan="2" style="text-align: center; color: var(--text-muted); font-style: italic;">
+                          ... and {{ block.pairs.length - 5 }} more words ...
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -317,6 +379,16 @@ const addBlock = (type) => {
       baseBlock.instruction = 'Connect matching text pairs.'
       baseBlock.pairs = [['large', 'big'], ['small', 'little']]
       break
+    case 'vocabulary':
+      baseBlock.instruction = 'Translate the vocabulary words.'
+      baseBlock.direction = 'l2r'
+      baseBlock.rawText = 'apple = Apfel\nbanana = Banane\ncherry = Kirsche'
+      baseBlock.pairs = [
+        { l: 'apple', r: 'Apfel' },
+        { l: 'banana', r: 'Banane' },
+        { l: 'cherry', r: 'Kirsche' }
+      ]
+      break
   }
 
   sheet.value.blocks.push(baseBlock)
@@ -407,6 +479,36 @@ const addPair = (block) => {
 
 const removePair = (block, idx) => {
   block.pairs.splice(idx, 1)
+}
+
+// Vocabulary utilities
+const parseVocabLines = (block) => {
+  const text = block.rawText || ''
+  const lines = text.split('\n')
+  const pairs = []
+  lines.forEach(line => {
+    const cleaned = line.trim()
+    if (!cleaned) return
+    const parts = cleaned.split(/\s*=\s*|\s*-\s*|\s*:\s*|,\s*/)
+    if (parts.length >= 2) {
+      pairs.push({
+        l: parts[0].trim(),
+        r: parts[1].trim()
+      })
+    }
+  })
+  block.pairs = pairs
+}
+
+const importVocabFile = (event, block) => {
+  const file = event.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    block.rawText = e.target.result
+    parseVocabLines(block)
+  }
+  reader.readAsText(file)
 }
 
 const generateWorksheetWithAI = async () => {
@@ -772,5 +874,34 @@ const saveWorksheet = async (publish = false) => {
 
 .mb-2 {
   margin-bottom: 8px;
+}
+
+.vocab-file-import {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vocab-preview-table-container {
+  margin-top: 12px;
+}
+
+.vocab-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.vocab-preview-table th, .vocab-preview-table td {
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.vocab-preview-table th {
+  background-color: var(--bg-main);
+  font-weight: 700;
 }
 </style>

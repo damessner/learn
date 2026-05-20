@@ -2,7 +2,8 @@
 An interactive, high-performance web-based learning and worksheet system designed specifically for schools. Optimized for touch-first iPad layouts, with seamless guest logins and optional Microsoft Teams Assignment integration.
 
 ## Features
-- **5 Core Interactive Exercises**:
+- **6 Core Interactive Exercises**:
+  - **Vocabulary & Writing**: Text list editor (paste or file import) with autocorrect, autocapitalize, autocomplete and spellcheck disabled. Students work through a dynamic practice loop (re-queueing mistakes) and can download a certificate detailing time spent, words learned, and the 5 most difficult words.
   - **Gap Filling**: Auto-scoring fill-in-the-blanks with typo tolerance.
   - **Drag-and-Drop**: Dual-mode drag-and-drop with tap-to-select fallbacks for iPad touch screens.
   - **Multiple & Single Choice**: Choice grids with clear correct/incorrect highlights.
@@ -30,8 +31,10 @@ learn/
 ├── deployment/       # Production hosting scripts
 │   ├── nginx.conf    # Nginx reverse proxy server block
 │   ├── ecosystem.config.js # PM2 backend runner configuration
-│   └── setup-lxc.sh  # Automated Proxmox LXC installer script
-```
+│   ├── setup-lxc.sh  # Automated Proxmox LXC installer script
+│   └── create-lxc.sh # Direct Proxmox host container creator script
+└── README.md
+
 
 ---
 
@@ -80,44 +83,86 @@ The frontend dev server runs on `http://localhost:5173`.
 
 ## 🌐 Production Deployment (Proxmox VE LXC)
 
-We provide an automated setup script that installs Node.js, PM2, SQLite3, Nginx, initializes the database, builds frontend production assets, and starts the system on a clean Debian/Ubuntu container.
+We provide two deployment options for hosting LearnFlow on your Proxmox VE hypervisor (`https://172.16.1.54:8006`).
 
-### Step 1: Create a Proxmox LXC Container
+### Option A: Direct Proxmox Hypervisor Script (Recommended)
+This script is run directly on the Proxmox VE host node. It automates container creation, templates, networking, repository cloning, and invokes the setup process inside the container.
+
+1. SSH into your Proxmox VE host (as root).
+2. Download and run the helper script:
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/damessner/learn/main/deployment/create-lxc.sh -o create-lxc.sh
+   chmod +x create-lxc.sh
+   sudo ./create-lxc.sh
+   ```
+3. Follow the prompts (defaults are configured for quick deployment). The script will automatically output your container's IP address.
+
+---
+
+### Option B: Manual LXC Container Creation
+If you prefer to configure your LXC container manually:
+
 1. Open your Proxmox VE Web UI.
-2. Download a **Debian 12** or **Ubuntu 22.04/24.04** container template.
+2. Download a **Debian 12** container template.
 3. Click "Create CT":
    - **Hostname**: `learnflow`
-   - **Password**: Secure password
-   - **Template**: Choose the downloaded Debian/Ubuntu template
+   - **Template**: Choose the downloaded Debian template
    - **Disk**: 8 GB+
-   - **CPU**: 1 or 2 Cores
-   - **Memory**: 1024 MB or 2048 MB RAM
+   - **CPU**: 2 Cores
+   - **Memory**: 1024 MB RAM
    - **Network**: DHCP (bridged to your LAN)
-4. Start the container and log in via the console or SSH as `root`.
+4. Start the container, log in via console as `root`, and run:
+   ```bash
+   git clone https://github.com/damessner/learn.git /opt/learnflow
+   cd /opt/learnflow
+   sudo bash deployment/setup-lxc.sh
+   ```
 
-### Step 2: Download & Run Installer
-Inside the LXC container terminal:
-```bash
-# Clone the repository (replace with your git URL)
-git clone https://github.com/learnflow/learn.git /var/www/learnflow
-cd /var/www/learnflow
+---
 
-# Run the automated installation script
-sudo bash deployment/setup-lxc.sh
-```
+## 🏆 Microsoft Entra ID & Teams Integration Setup
+To enable Microsoft Teams Assignment sync and SSO, a school Microsoft Entra ID (Azure AD) Tenant Administrator must register the application.
 
-### Step 3: Configure Domain and Azure Credentials
-If you are linking Microsoft Teams, update `/var/www/learnflow/backend/.env` with your Azure credentials:
+### Step 1: Register the Application
+1. Sign in to the [Microsoft Entra Admin Center](https://entra.microsoft.com) as an Administrator.
+2. Navigate to **Identity** > **Applications** > **App registrations** > **New registration**.
+3. Configure settings:
+   - **Name**: `LearnFlow`
+   - **Supported account types**: "Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant)"
+   - **Redirect URI**: Select **Single-page application (SPA)** and add your client redirect URL:
+     - Production: `https://<your-domain>/login`
+     - Development: `http://localhost:5173/login`
+4. Click **Register**.
+
+### Step 2: Request API Permissions
+The backend service accesses Microsoft Graph using client credentials.
+1. In your registered app, go to **API permissions** > **Add a permission** > **Microsoft Graph**.
+2. Select **Application permissions** (not Delegated).
+3. Check the following permissions:
+   - `EducationAssignments.ReadWrite.All` - Allows LearnFlow to create, update, and publish assignments in Teams classes.
+   - `EducationClasses.Read.All` - Allows teachers to select and link their Teams classes.
+   - `User.Read.All` - Matches student submissions to Entra user profiles by email/MSID.
+4. Click **Add permissions**.
+5. Click **Grant admin consent for <your-organization>** and approve the prompt.
+
+### Step 3: Create a Client Secret
+1. Go to **Certificates & secrets** > **Client secrets** > **New client secret**.
+2. Add a description, set an expiration period, and click **Add**.
+3. **Important**: Copy the Secret **Value** (not ID) immediately. It will be hidden permanently once you reload the page.
+
+### Step 4: Configure LearnFlow Environmental Variables
+Open `/var/www/learnflow/backend/.env` (or `/opt/learnflow/backend/.env`) in the LXC container:
 ```env
-MS_CLIENT_ID=your-client-id
-MS_CLIENT_SECRET=your-client-secret
-MS_TENANT_ID=your-school-tenant-id
-BASE_URL=https://learnflow.your-school.edu
+MS_CLIENT_ID=your-application-client-id
+MS_CLIENT_SECRET=your-copied-client-secret-value
+MS_TENANT_ID=your-directory-tenant-id
+BASE_URL=http://<your-lxc-container-ip> # or https://learnflow.your-school.edu
 ```
-Then restart the backend using PM2:
+Save the file and restart PM2 inside the container:
 ```bash
 pm2 restart learnflow-backend
 ```
+
 
 ---
 

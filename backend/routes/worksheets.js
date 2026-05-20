@@ -123,6 +123,20 @@ router.get('/:id', requireAuth, (req, res) => {
         // Shuffle draggable items
         stripped.items = [...block.items].sort(() => Math.random() - 0.5);
       }
+      if (block.type === 'vocabulary') {
+        const pairs = block.pairs || [];
+        stripped.words = pairs.map((pair, pIdx) => {
+          const isL2R = block.direction === 'l2r' || (block.direction === 'mixed' && pIdx % 2 === 0);
+          return {
+            id: pIdx,
+            clue: isL2R ? pair.l : pair.r,
+            answer: isL2R ? pair.r : pair.l,
+            promptLang: isL2R ? 'left' : 'right'
+          };
+        });
+        delete stripped.pairs;
+        delete stripped.rawText;
+      }
       return stripped;
     });
     worksheet.content = JSON.stringify(content);
