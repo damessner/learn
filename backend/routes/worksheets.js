@@ -224,7 +224,7 @@ router.put('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   }
 
   const { title, description, subject, grade_level, content, is_published, tags } = req.body;
-  const totalPoints = content !== undefined ? calculatePoints(content) : existing.total_points;
+  const totalPoints = content !== undefined && content !== null ? calculatePoints(content) : existing.total_points;
 
   db.prepare(`
     UPDATE worksheets SET

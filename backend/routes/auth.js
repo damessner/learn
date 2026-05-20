@@ -424,6 +424,11 @@ router.delete('/users/:id', requireAuth, requireRole('admin'), (req, res) => {
     if (hasWorksheets && hasWorksheets.cnt > 0) {
       return res.status(409).json({ error: `Cannot delete user: they have ${hasWorksheets.cnt} worksheets. Reassign or delete their worksheets first.` });
     }
+    // Check if user has classes created_by them
+    const hasClasses = db.prepare('SELECT COUNT(*) as cnt FROM classes WHERE created_by = ?').get(req.params.id);
+    if (hasClasses && hasClasses.cnt > 0) {
+      return res.status(409).json({ error: `Cannot delete user: they own ${hasClasses.cnt} classes. Delete or reassign their classes first.` });
+    }
     db.transaction(() => {
       db.prepare('DELETE FROM class_students WHERE student_id = ?').run(req.params.id);
       db.prepare('DELETE FROM submissions WHERE user_id = ?').run(req.params.id);
