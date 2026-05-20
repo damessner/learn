@@ -12,6 +12,7 @@ const mediaRoutes = require('./routes/media');
 const teamsRoutes = require('./routes/teams');
 const classRoutes = require('./routes/classes');
 const coursesRoutes = require('./routes/courses');
+const learningRoutes = require('./routes/learning');
 const { initDB } = require('./db/init');
 
 const app = express();
@@ -83,6 +84,7 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/teams', teamsRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/courses', coursesRoutes);
+app.use('/api/learning', learningRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

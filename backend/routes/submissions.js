@@ -23,7 +23,13 @@ router.get('/assignment/:assignmentId', requireAuth, (req, res) => {
   `).get(req.params.assignmentId, req.user.userId);
 
   if (!submission) return res.json(null);
-  res.json({ ...submission, answers: JSON.parse(submission.answers) });
+  const attempts = db.prepare(`
+    SELECT attempt_no, score, max_score, submitted_at
+    FROM submission_attempts
+    WHERE assignment_id = ? AND user_id = ?
+    ORDER BY attempt_no DESC
+  `).all(req.params.assignmentId, req.user.userId);
+  res.json({ ...submission, answers: JSON.parse(submission.answers), attempts });
 });
 
 // ─── Save progress (auto-save, not final) ─────────────────────────────────────
@@ -44,7 +50,7 @@ router.post('/assignment/:assignmentId/save', requireAuth, (req, res) => {
 
   if (existing) {
     db.prepare(`
-      UPDATE submissions SET answers = ? WHERE assignment_id = ? AND user_id = ? AND submitted_at IS NULL
+      UPDATE submissions SET answers = ? WHERE assignment_id = ? AND user_id = ?
     `).run(JSON.stringify(answers), assignmentId, userId);
   } else {
     db.prepare(`
@@ -73,35 +79,74 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
 
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
 
-  // Check not already submitted
+  const retryPolicy = assignment.retry_policy || 'single';
+  const maxAttempts = Math.max(1, Number(assignment.max_attempts) || 1);
+
+  // Existing aggregate submission row
   const existing = db.prepare(
     'SELECT * FROM submissions WHERE assignment_id = ? AND user_id = ?'
   ).get(assignmentId, userId);
 
-  if (existing && existing.submitted_at) {
-    return res.status(409).json({ error: 'Already submitted', submission: { ...existing, answers: JSON.parse(existing.answers) } });
+  const attemptsSoFar = db.prepare(`
+    SELECT COUNT(*) as cnt
+    FROM submission_attempts
+    WHERE assignment_id = ? AND user_id = ?
+  `).get(assignmentId, userId).cnt || 0;
+
+  if (retryPolicy === 'single' && attemptsSoFar >= 1) {
+    return res.status(409).json({ error: 'This assignment allows only one submission attempt.' });
+  }
+  if (retryPolicy === 'capped' && attemptsSoFar >= maxAttempts) {
+    return res.status(409).json({ error: `Maximum attempts reached (${maxAttempts}).` });
   }
 
   // Score the submission
   const content = JSON.parse(assignment.content);
   const { score, maxScore, feedback } = scoreAnswers(content.blocks, answers);
 
+  const attemptNo = attemptsSoFar + 1;
   const submissionId = existing ? existing.id : uuidv4();
+  const attemptId = uuidv4();
 
+  db.prepare(`
+    INSERT INTO submission_attempts (id, assignment_id, user_id, attempt_no, answers, score, max_score, submitted_at, feedback_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+  `).run(attemptId, assignmentId, userId, attemptNo, JSON.stringify(answers), score, maxScore, JSON.stringify(feedback || {}));
+
+  let finalScore = score;
+  let finalMaxScore = maxScore;
+  let finalAnswers = answers;
   if (existing) {
+    if (retryPolicy === 'best') {
+      const existingPct = existing.max_score > 0 ? existing.score / existing.max_score : 0;
+      const newPct = maxScore > 0 ? score / maxScore : 0;
+      if (existingPct >= newPct) {
+        finalScore = existing.score || 0;
+        finalMaxScore = existing.max_score || maxScore;
+        finalAnswers = JSON.parse(existing.answers || '{}');
+      }
+    }
     db.prepare(`
       UPDATE submissions SET
         answers = ?, score = ?, max_score = ?, submitted_at = datetime('now')
       WHERE id = ?
-    `).run(JSON.stringify(answers), score, maxScore, submissionId);
+    `).run(JSON.stringify(finalAnswers), finalScore, finalMaxScore, submissionId);
   } else {
     db.prepare(`
       INSERT INTO submissions (id, assignment_id, user_id, answers, score, max_score, submitted_at)
       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-    `).run(submissionId, assignmentId, userId, JSON.stringify(answers), score, maxScore);
+    `).run(submissionId, assignmentId, userId, JSON.stringify(finalAnswers), finalScore, finalMaxScore);
   }
 
-  res.json({ score, maxScore, percentage: maxScore > 0 ? Math.round((score / maxScore) * 100) : 0, feedback });
+  res.json({
+    score: finalScore,
+    maxScore: finalMaxScore,
+    percentage: finalMaxScore > 0 ? Math.round((finalScore / finalMaxScore) * 100) : 0,
+    feedback,
+    attemptNo,
+    retryPolicy,
+    attemptsRemaining: retryPolicy === 'single' ? 0 : retryPolicy === 'capped' ? Math.max(0, maxAttempts - attemptNo) : null
+  });
 });
 
 // ─── Scoring engine ───────────────────────────────────────────────────────────
@@ -215,6 +260,34 @@ function scoreAnswers(blocks, answers) {
             const isL2R = block.direction === 'l2r' || (block.direction === 'mixed' && pIdx % 2 === 0);
             return isL2R ? pair.r : pair.l;
           })
+        };
+        break;
+      }
+
+      case 'short_answer': {
+        const sampleAnswer = (block.sample_answer || '').toLowerCase().trim();
+        const studentText = String(studentAnswer || '').trim();
+        const studentLower = studentText.toLowerCase();
+        const keywords = Array.isArray(block.keywords)
+          ? block.keywords.map(k => String(k).toLowerCase()).filter(Boolean)
+          : sampleAnswer.split(/\W+/).filter(w => w.length > 4).slice(0, 5);
+        const keywordHits = keywords.filter(k => studentLower.includes(k)).length;
+        const coverage = keywords.length > 0 ? keywordHits / keywords.length : (studentText.length >= 20 ? 1 : 0);
+        const earned = Math.round(Math.max(0, Math.min(1, coverage)) * blockPoints);
+        score += earned;
+
+        const aiFeedback = {
+          grammar: /[.!?]$/.test(studentText) ? 'Good sentence ending and structure.' : 'Try ending full thoughts with punctuation.',
+          clarity: studentText.length >= 30 ? 'Response is sufficiently detailed.' : 'Add more detail to improve clarity.',
+          keyPoints: keywords.length === 0 ? 'No keyword target configured.' : `${keywordHits}/${keywords.length} expected key points covered.`
+        };
+
+        feedback[block.id] = {
+          correct: coverage >= 0.8,
+          score: earned,
+          maxScore: blockPoints,
+          aiFeedback,
+          keywords
         };
         break;
       }

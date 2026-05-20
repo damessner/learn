@@ -14,6 +14,25 @@
       <span>⚠️</span> {{ error }}
     </div>
 
+    <div class="insight-cards">
+      <div class="insight-card card">
+        <h3>🚨 At-risk Students</h3>
+        <p class="insight-value">{{ atRiskStudents.length }}</p>
+      </div>
+      <div class="insight-card card">
+        <h3>🧩 Intervention Groups</h3>
+        <p class="insight-value">{{ interventionGroups.length }}</p>
+      </div>
+      <div class="insight-card card">
+        <h3>📊 Completion</h3>
+        <p class="insight-value">{{ teacherAnalytics?.overview?.completedSubmissions || 0 }}</p>
+      </div>
+      <div class="insight-card card">
+        <h3>📈 Weakest Subject</h3>
+        <p class="insight-value">{{ teacherAnalytics?.subjectPerformance?.[0]?.subject || 'N/A' }}</p>
+      </div>
+    </div>
+
     <!-- Main Navigation tabs -->
     <div class="tabs">
       <button 
@@ -718,6 +737,22 @@
             <label>Due Date</label>
             <input type="datetime-local" v-model="assignForm.due_date" required />
           </div>
+          <div class="form-group">
+            <label>Retry Policy</label>
+            <select v-model="assignForm.retry_policy">
+              <option value="single">Single attempt</option>
+              <option value="best">Keep best score</option>
+              <option value="latest">Use latest score</option>
+              <option value="capped">Capped attempts</option>
+            </select>
+          </div>
+          <div class="form-group" v-if="assignForm.retry_policy === 'capped'">
+            <label>Max Attempts</label>
+            <input type="number" min="1" v-model.number="assignForm.max_attempts" />
+          </div>
+          <div class="form-group">
+            <label><input type="checkbox" v-model="assignForm.peer_review_enabled" /> Enable peer review</label>
+          </div>
           <div class="modal-buttons">
             <button type="button" @click="showAssignModal = false" class="btn btn-secondary">Cancel</button>
             <button type="submit" class="btn btn-primary">Assign Worksheet</button>
@@ -1052,7 +1087,15 @@ const filteredUsers = computed(() => {
 
 const showAssignModal = ref(false)
 const selectedSheet = ref(null)
-const assignForm = ref({ class_name: '', class_id: '', due_date: '' })
+const assignForm = ref({
+  class_name: '',
+  class_id: '',
+  due_date: '',
+  retry_policy: 'single',
+  max_attempts: 2,
+  peer_review_enabled: false,
+  adaptive_difficulty: 'auto'
+})
 const selectedAssignClass = ref(null)
 
 const showResultsModal = ref(false)
@@ -1100,6 +1143,9 @@ const newAnnouncement = ref('')
 // Stats modal state
 const showStatsModal = ref(false)
 const currentStats = ref(null)
+const atRiskStudents = ref([])
+const interventionGroups = ref([])
+const teacherAnalytics = ref(null)
 
 // CSV import state
 const showImportCSVModal = ref(false)
@@ -1149,6 +1195,15 @@ const fetchData = async () => {
       await fetchAdminSettings()
       await fetchAdminUsers()
     }
+
+    const [riskResp, groupResp, analyticsResp] = await Promise.all([
+      fetch(`${API_BASE}/learning/teacher/at-risk`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_BASE}/learning/teacher/interventions`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      fetch(`${API_BASE}/learning/teacher/analytics`, { headers: { 'Authorization': `Bearer ${token}` } })
+    ])
+    if (riskResp.ok) atRiskStudents.value = await riskResp.json()
+    if (groupResp.ok) interventionGroups.value = await groupResp.json()
+    if (analyticsResp.ok) teacherAnalytics.value = await analyticsResp.json()
   } catch (err) {
     error.value = err.message
   } finally {
@@ -1733,7 +1788,15 @@ const useTemplate = async (templateId) => {
 const openAssignModal = (sheet) => {
   selectedSheet.value = sheet
   selectedAssignClass.value = null
-  assignForm.value = { class_name: '', class_id: '', due_date: '' }
+  assignForm.value = {
+    class_name: '',
+    class_id: '',
+    due_date: '',
+    retry_policy: 'single',
+    max_attempts: 2,
+    peer_review_enabled: false,
+    adaptive_difficulty: 'auto'
+  }
   showAssignModal.value = true
 }
 
@@ -2062,6 +2125,29 @@ const importCSVStudents = async () => {
 
 .subtitle {
   color: var(--text-muted);
+}
+
+.insight-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.insight-card {
+  padding: 14px;
+}
+
+.insight-card h3 {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.insight-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--primary);
 }
 
 .tabs {

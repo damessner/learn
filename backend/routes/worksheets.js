@@ -182,17 +182,24 @@ router.get('/:id', requireAuth, (req, res) => {
         delete stripped.pairs;
         delete stripped.rawText;
       }
+      if (block.type === 'short_answer') {
+        delete stripped.sample_answer;
+      }
       return stripped;
     });
     worksheet.content = JSON.stringify(content);
   }
 
-  res.json({ ...worksheet, content: JSON.parse(worksheet.content) });
+  res.json({
+    ...worksheet,
+    content: JSON.parse(worksheet.content),
+    rubric: worksheet.rubric_json ? JSON.parse(worksheet.rubric_json) : { criteria: [] }
+  });
 });
 
 // ─── Create worksheet ──────────────────────────────────────────────────────────
 router.post('/', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
-  const { title, description, subject, grade_level, content, tags } = req.body;
+  const { title, description, subject, grade_level, content, tags, rubric } = req.body;
 
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'Title is required' });
@@ -204,12 +211,27 @@ router.post('/', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   const totalPoints = calculatePoints(content);
 
   db.prepare(`
-    INSERT INTO worksheets (id, title, description, subject, grade_level, created_by, content, total_points, tags)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, title.trim(), description || '', subject || '', grade_level || '', req.user.userId, contentStr, totalPoints, tags || '');
+    INSERT INTO worksheets (id, title, description, subject, grade_level, created_by, content, total_points, tags, rubric_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    title.trim(),
+    description || '',
+    subject || '',
+    grade_level || '',
+    req.user.userId,
+    contentStr,
+    totalPoints,
+    tags || '',
+    JSON.stringify(rubric || { criteria: [] })
+  );
 
   const worksheet = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(id);
-  res.status(201).json({ ...worksheet, content: JSON.parse(worksheet.content) });
+  res.status(201).json({
+    ...worksheet,
+    content: JSON.parse(worksheet.content),
+    rubric: worksheet.rubric_json ? JSON.parse(worksheet.rubric_json) : { criteria: [] }
+  });
 });
 
 // ─── Update worksheet ──────────────────────────────────────────────────────────
@@ -223,7 +245,7 @@ router.put('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
     return res.status(403).json({ error: 'Not your worksheet' });
   }
 
-  const { title, description, subject, grade_level, content, is_published, tags } = req.body;
+  const { title, description, subject, grade_level, content, is_published, tags, rubric } = req.body;
   const totalPoints = content != null ? calculatePoints(content) : existing.total_points;
 
   db.prepare(`
@@ -236,6 +258,7 @@ router.put('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
       total_points = COALESCE(?, total_points),
       is_published = COALESCE(?, is_published),
       tags = COALESCE(?, tags),
+      rubric_json = COALESCE(?, rubric_json),
       updated_at = datetime('now')
     WHERE id = ?
   `).run(
@@ -244,11 +267,16 @@ router.put('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
     content !== undefined ? totalPoints : null,
     is_published !== undefined ? (is_published ? 1 : 0) : null,
     tags !== undefined ? (tags || '') : null,
+    rubric !== undefined ? JSON.stringify(rubric || { criteria: [] }) : null,
     req.params.id
   );
 
   const updated = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(req.params.id);
-  res.json({ ...updated, content: JSON.parse(updated.content) });
+  res.json({
+    ...updated,
+    content: JSON.parse(updated.content),
+    rubric: updated.rubric_json ? JSON.parse(updated.rubric_json) : { criteria: [] }
+  });
 });
 
 // ─── Delete worksheet ──────────────────────────────────────────────────────────
@@ -280,15 +308,26 @@ router.get('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (re
 });
 
 router.post('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
-  const { class_name, class_id, due_date } = req.body;
+  const { class_name, class_id, due_date, retry_policy, max_attempts, peer_review_enabled, adaptive_difficulty } = req.body;
   if (!class_name) return res.status(400).json({ error: 'class_name required' });
 
   const db = getDB();
   const id = uuidv4();
   db.prepare(`
-    INSERT INTO assignments (id, worksheet_id, class_name, class_id, due_date, created_by)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, req.params.id, class_name, class_id || null, due_date || null, req.user.userId);
+    INSERT INTO assignments (id, worksheet_id, class_name, class_id, due_date, created_by, retry_policy, max_attempts, peer_review_enabled, adaptive_difficulty)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    req.params.id,
+    class_name,
+    class_id || null,
+    due_date || null,
+    req.user.userId,
+    ['single', 'best', 'latest', 'capped'].includes(retry_policy) ? retry_policy : 'single',
+    Number.isFinite(Number(max_attempts)) ? Math.max(1, Number(max_attempts)) : 1,
+    peer_review_enabled ? 1 : 0,
+    adaptive_difficulty || 'auto'
+  );
 
   const assignment = db.prepare('SELECT * FROM assignments WHERE id = ?').get(id);
   res.status(201).json(assignment);
