@@ -83,9 +83,32 @@ The frontend dev server runs on `http://localhost:5173`.
 
 ## 🌐 Production Deployment (Proxmox VE LXC)
 
-We provide two deployment options for hosting LearnFlow on your Proxmox VE hypervisor (`https://172.16.1.54:8006`).
+We provide three deployment options for hosting LearnFlow on your Proxmox VE hypervisor (`https://172.16.1.54:8006`).
 
-### Option A: Direct Proxmox Hypervisor Script (Recommended)
+### Option A: Automated SSH-Based Local Deployment (Recommended)
+If you have configured local SSH access to your Proxmox server (`pve`), you can deploy LearnFlow directly from your development machine.
+
+1. Configure your local SSH client for Proxmox using our PowerShell setup script:
+   ```powershell
+   powershell -File pve/setup_ssh.ps1
+   ```
+   *Note: This maps `ssh pve` directly to `root@172.16.1.54` using your Proxmox private key.*
+
+2. Run the automated deployment script from your workstation:
+   - This creates a lightweight archive `learnflow.tar.gz`.
+   - Transfers the archive to Proxmox `/tmp`.
+   - Automates the container creation (CT `100`), system packages install, file extraction, static builds, and Nginx reverse proxy configuration.
+   
+   To run this on the Proxmox host:
+   ```bash
+   scp learnflow.tar.gz pve:/tmp/learnflow.tar.gz
+   scp pve/deploy_lxc.sh pve:/tmp/deploy_lxc.sh
+   ssh pve "bash /tmp/deploy_lxc.sh"
+   ```
+
+---
+
+### Option B: Direct Proxmox Hypervisor Script
 This script is run directly on the Proxmox VE host node. It automates container creation, templates, networking, repository cloning, and invokes the setup process inside the container.
 
 1. SSH into your Proxmox VE host (as root).
@@ -99,7 +122,7 @@ This script is run directly on the Proxmox VE host node. It automates container 
 
 ---
 
-### Option B: Manual LXC Container Creation
+### Option C: Manual LXC Container Creation
 If you prefer to configure your LXC container manually:
 
 1. Open your Proxmox VE Web UI.
@@ -119,6 +142,7 @@ If you prefer to configure your LXC container manually:
    ```
 
 ---
+
 
 ## 🏆 Microsoft Entra ID & Teams Integration Setup
 To enable Microsoft Teams Assignment sync and SSO, a school Microsoft Entra ID (Azure AD) Tenant Administrator must register the application.
