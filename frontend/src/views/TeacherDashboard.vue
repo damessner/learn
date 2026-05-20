@@ -22,7 +22,7 @@
         @click="switchTab(tab)"
         :class="['tab-btn', { active: activeTab === tab }]"
       >
-        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : tab === 'templates' ? 'Templates Library' : 'System Settings ⚙️' }}
+        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : tab === 'courses' ? 'Courses' : tab === 'templates' ? 'Templates Library' : 'System Settings ⚙️' }}
       </button>
     </div>
     <!-- Worksheets Tab -->
@@ -67,6 +67,9 @@
                   <button @click="openAssignModal(sheet)" class="btn-icon" title="Assign to Class">
                     <span>📢</span>
                   </button>
+                  <router-link :to="`/teacher/preview/${sheet.id}`" class="btn-icon" title="Preview Worksheet">
+                    <span>👀</span>
+                  </router-link>
                   <router-link :to="`/teacher/builder/${sheet.id}`" class="btn-icon" title="Edit Worksheet">
                     <span>✏️</span>
                   </router-link>
@@ -78,6 +81,105 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+    <!-- Courses Tab (New) -->
+    <div v-if="activeTab === 'courses'" class="tab-content">
+      <div class="content-header" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+        <h2>Your Courses</h2>
+        <button @click="showCreateCourseModal = true" class="btn btn-primary">
+          ＋ Create Course
+        </button>
+      </div>
+
+      <div v-if="loading" class="spinner-container">
+        <div class="spinner"></div>
+      </div>
+      
+      <div v-else-if="courses.length === 0" class="empty-state card glass">
+        <span>📚</span>
+        <h3>No Courses Created</h3>
+        <p>Group multiple worksheets together into a sequential course for your students.</p>
+        <button @click="showCreateCourseModal = true" class="btn btn-primary">Create Course</button>
+      </div>
+
+      <div v-else class="classes-grid">
+        <div v-for="course in courses" :key="course.id" @click="selectCourse(course)" class="class-card card glass clickable">
+          <div class="class-card-header">
+            <h3>{{ course.title }}</h3>
+            <button @click.stop="deleteCourse(course.id)" class="btn-icon btn-icon-danger" title="Delete Course">
+              <span>🗑️</span>
+            </button>
+          </div>
+          <div class="class-card-body">
+            <p class="pupils-count">📄 <strong>{{ course.worksheet_count || 0 }}</strong> worksheets</p>
+            <p v-if="course.description" class="course-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-top: 8px;">
+              {{ course.description.substring(0, 60) }}{{ course.description.length > 60 ? '...' : '' }}
+            </p>
+            <span class="text-link" style="margin-top: 12px; display: inline-block;">Manage Course →</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Course Detail View -->
+    <div v-if="activeTab === 'course-detail' && selectedCourseDetail" class="class-detail-section">
+      <div class="detail-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <button @click="activeTab = 'courses'; selectedCourseDetail = null" class="btn btn-secondary btn-sm">
+          ← Back to Courses
+        </button>
+        <div class="class-title-info">
+          <h2>Course: <span>{{ selectedCourseDetail.title }}</span></h2>
+          <p class="student-subtitle">📄 {{ selectedCourseDetail.worksheets.length }} worksheets</p>
+        </div>
+        <div>
+          <button @click="openAssignCourseModal(selectedCourseDetail)" class="btn btn-primary">
+            📢 Assign Course
+          </button>
+        </div>
+      </div>
+
+      <div class="class-section card glass">
+        <div class="class-section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h3>Course Worksheets</h3>
+          <div class="roster-actions" style="display: flex; gap: 8px;">
+            <select v-model="selectedWorksheetToAdd" class="form-control" style="max-width: 250px;">
+              <option value="">-- Select Worksheet --</option>
+              <option v-for="ws in worksheets" :key="ws.id" :value="ws.id">{{ ws.title }}</option>
+            </select>
+            <button @click="addWorksheetToCourse" :disabled="!selectedWorksheetToAdd" class="btn btn-secondary btn-sm">
+              ＋ Add to Course
+            </button>
+          </div>
+        </div>
+
+        <div v-if="selectedCourseDetail.worksheets.length === 0" class="matrix-placeholder" style="text-align: center; padding: 20px;">
+          <p>No worksheets added to this course yet.</p>
+        </div>
+        <div v-else class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Title</th>
+                <th>Points</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(ws, index) in selectedCourseDetail.worksheets" :key="ws.worksheet_id || ws.id">
+                <td>#{{ index + 1 }}</td>
+                <td class="font-bold">{{ ws.title }}</td>
+                <td>{{ ws.total_points }} pts</td>
+                <td>
+                  <button @click="removeWorksheetFromCourse(ws.worksheet_id || ws.id)" class="btn-icon btn-icon-danger" title="Remove from Course">
+                    <span>❌</span>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -336,9 +438,34 @@
                 </div>
               </div>
 
-              <div class="settings-action" style="margin-top: 20px;">
+              <div class="settings-action">
                 <button type="submit" class="btn btn-primary" :disabled="savingSettings">
                   {{ savingSettings ? 'Saving...' : 'Save Configuration 💾' }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- AI Configuration Card -->
+          <div class="settings-card card glass" style="margin-bottom: 24px;">
+            <h3>AI Generation Integrations</h3>
+            <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">
+              Configure Ollama for local LLM worksheet generation.
+            </p>
+            
+            <form @submit.prevent="saveAiSettings" class="settings-form">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500;">Ollama Base URL</label>
+                <input type="text" v-model="aiSettingsForm.ollama_base_url" placeholder="http://localhost:11434" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
+              </div>
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label style="display: block; margin-bottom: 6px; font-weight: 500;">Ollama Model Name</label>
+                <input type="text" v-model="aiSettingsForm.ollama_model" placeholder="llama3.1" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
+              </div>
+
+              <div class="settings-action" style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary" :disabled="savingAiSettings">
+                  {{ savingAiSettings ? 'Saving...' : 'Save AI Config 🤖' }}
                 </button>
               </div>
             </form>
@@ -671,6 +798,69 @@
         </div>
       </div>
     </div>
+    <!-- Assign Course Modal -->
+    <div v-if="showAssignCourseModal" class="modal-overlay">
+      <div class="modal card">
+        <div class="modal-header">
+          <h2>Assign Course</h2>
+          <button @click="showAssignCourseModal = false" class="btn-close">×</button>
+        </div>
+        <form @submit.prevent="assignCourseToClass" class="assign-form">
+          <div class="form-group">
+            <label>Select Target Class</label>
+            <div class="class-picker-grid">
+              <div 
+                v-for="cls in classes" 
+                :key="cls.id"
+                @click="selectAssignCourseClass(cls)"
+                :class="['class-picker-card', { selected: selectedAssignCourseClass?.id === cls.id }]"
+              >
+                <h4>{{ cls.name }}</h4>
+                <p>👥 {{ cls.student_count || 0 }}</p>
+              </div>
+            </div>
+            <p v-if="classes.length === 0" class="no-classes-msg">No classes created. Please create one in the Classes tab first.</p>
+          </div>
+          
+          <div class="form-group" v-if="selectedAssignCourseClass">
+            <label>Due Date (Optional)</label>
+            <input type="datetime-local" v-model="assignCourseForm.due_date" class="form-control" />
+          </div>
+
+          <div class="modal-buttons" style="margin-top: 24px;">
+            <button type="button" @click="showAssignCourseModal = false" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary" :disabled="!selectedAssignCourseClass">
+              Assign Course 📢
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Create Course Modal -->
+    <div v-if="showCreateCourseModal" class="modal-overlay">
+      <div class="modal card">
+        <div class="modal-header">
+          <h2>Create New Course</h2>
+          <button @click="showCreateCourseModal = false" class="btn-close">×</button>
+        </div>
+        <form @submit.prevent="createCourse" class="auth-form">
+          <div class="form-group">
+            <label>Course Title</label>
+            <input type="text" v-model="newCourseForm.title" placeholder="e.g. English Grammar 101" required />
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <textarea v-model="newCourseForm.description" placeholder="Optional description..." rows="3"></textarea>
+          </div>
+          <div class="modal-buttons">
+            <button type="button" @click="showCreateCourseModal = false" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Course</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
   </div>
 </template>
 <script setup>
@@ -686,7 +876,7 @@ const currentUser = ref(null)
 
 // Computed availableTabs based on role
 const availableTabs = computed(() => {
-  const tabs = ['worksheets', 'assignments', 'classes', 'templates']
+  const tabs = ['worksheets', 'courses', 'assignments', 'classes', 'templates']
   if (currentUser.value && currentUser.value.role === 'admin') {
     tabs.push('settings')
   }
@@ -696,6 +886,8 @@ const availableTabs = computed(() => {
 // Settings State
 const settingsForm = ref({ auth_mode: 'local' })
 const savingSettings = ref(false)
+const aiSettingsForm = ref({ ollama_base_url: 'http://localhost:11434', ollama_model: 'llama3.1' })
+const savingAiSettings = ref(false)
 const usersList = ref([])
 const userSearchQuery = ref('')
 
@@ -726,6 +918,16 @@ const selectedAssignClass = ref(null)
 
 const showResultsModal = ref(false)
 const currentResults = ref([])
+
+// Courses state
+const courses = ref([])
+const showCreateCourseModal = ref(false)
+const newCourseForm = ref({ title: '', description: '' })
+const selectedCourseDetail = ref(null)
+const selectedWorksheetToAdd = ref('')
+const showAssignCourseModal = ref(false)
+const assignCourseForm = ref({ class_id: '', due_date: '' })
+const selectedAssignCourseClass = ref(null)
 
 // Classes & Groups state
 const classes = ref([])
@@ -781,6 +983,9 @@ const fetchData = async () => {
 
     // Classes
     await fetchClasses()
+    
+    // Courses
+    await fetchCourses()
 
     // Load admin settings/users if admin role
     if (currentUser.value && currentUser.value.role === 'admin') {
@@ -804,9 +1009,34 @@ const fetchAdminSettings = async () => {
     if (res.ok) {
       const data = await res.json()
       settingsForm.value = { auth_mode: data.auth_mode || 'local' }
+      aiSettingsForm.value = { 
+        ollama_base_url: data.ollama_base_url || 'http://localhost:11434',
+        ollama_model: data.ollama_model || 'llama3.1'
+      }
     }
   } catch (err) {
     console.error('Failed to fetch settings:', err)
+  }
+}
+
+const saveAiSettings = async () => {
+  savingAiSettings.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/auth/settings`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(aiSettingsForm.value)
+    })
+    if (res.ok) alert('AI configurations saved successfully!')
+    else alert('Failed to save AI configuration.')
+  } catch (err) {
+    alert('Error saving AI config: ' + err.message)
+  } finally {
+    savingAiSettings.value = false
   }
 }
 
@@ -1058,7 +1288,132 @@ const deleteClass = async (classId) => {
   }
 }
 
-// ─── Roster API Actions ────────────────────────────────────────────────────────
+// ─── COURSES LOGIC ──────────────────────────────────────────────────────────
+
+const fetchCourses = async () => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/courses`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) courses.value = await res.json()
+  } catch (err) {
+    console.error('Failed to fetch courses:', err)
+  }
+}
+
+const createCourse = async () => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/courses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(newCourseForm.value)
+    })
+    if (!res.ok) throw new Error('Failed to create course')
+    showCreateCourseModal.value = false
+    newCourseForm.value = { title: '', description: '' }
+    await fetchCourses()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const selectCourse = async (course) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/courses/${course.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to load course details')
+    selectedCourseDetail.value = await res.json()
+    activeTab.value = 'course-detail'
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const deleteCourse = async (id) => {
+  if (!confirm('Are you sure you want to delete this course?')) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/courses/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) await fetchCourses()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const addWorksheetToCourse = async () => {
+  if (!selectedWorksheetToAdd.value) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/courses/${selectedCourseDetail.value.id}/worksheets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ worksheet_id: selectedWorksheetToAdd.value })
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.error || 'Failed to add worksheet')
+    }
+    selectedWorksheetToAdd.value = ''
+    await selectCourse(selectedCourseDetail.value)
+    await fetchCourses() // update counts
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const removeWorksheetFromCourse = async (worksheetId) => {
+  if (!confirm('Remove this worksheet from the course?')) return
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/courses/${selectedCourseDetail.value.id}/worksheets/${worksheetId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      await selectCourse(selectedCourseDetail.value)
+      await fetchCourses()
+    }
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const openAssignCourseModal = (course) => {
+  assignCourseForm.value = { class_id: '', due_date: '' }
+  selectedAssignCourseClass.value = null
+  showAssignCourseModal.value = true
+}
+
+const selectAssignCourseClass = (cls) => {
+  selectedAssignCourseClass.value = cls
+  assignCourseForm.value.class_id = cls.id
+}
+
+const assignCourseToClass = async () => {
+  if (!assignCourseForm.value.class_id) return alert('Select a class first')
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/courses/${selectedCourseDetail.value.id}/assign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(assignCourseForm.value)
+    })
+    if (!res.ok) throw new Error('Failed to assign course')
+    showAssignCourseModal.value = false
+    alert('Course assigned successfully!')
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── UTILS ────────────────────────────────────────────────────────────────
 const openAddStudentModal = async () => {
   studentSearchQuery.value = ''
   selectedStudentIds.value = []

@@ -10,11 +10,13 @@ An interactive, high-performance web-based learning and worksheet system designe
   - **Matching / Connect**: SVG canvas rendering connection lines between items.
   - **Rich Media**: In-line audio widgets and expandable zoom lightboxes for images.
 - **Authentication Flexibility**: Choice of Local Credentials (username/password) or Microsoft Entra ID (SSO) login.
-- **Admin Dashboard Settings**: Full User Account Roster (register, edit, change password, delete) and real-time authentication mode selection tab.
+- **Admin Dashboard Settings**: Full User Account Roster (register, edit, change password, delete), real-time authentication mode selection, and **AI Generation Integrations** to dynamically configure local LLM settings.
 - **Teams Sync**: Push grades directly into Microsoft Teams assignments.
 - **Guest / Code Login**: Fallback mode allowing students to join with an assignment code and name (no MSAL tenant required).
 - **Auto-Save**: Automatic draft saving to SQLite database every 20 seconds.
-- **AI Worksheet Drafting**: Teachers/admins can generate compact worksheet JSON drafts in the builder via **Gemini API** or **Ollama**.
+- **AI Worksheet Drafting**: Generate compact worksheet JSON drafts in the builder via **Gemini API** or **Ollama** (Ollama URL and model name are configurable via Settings in the Admin UI).
+- **Worksheet Preview Mode**: Reuses the interactive player components allowing teachers to solve and preview worksheet scoring dynamically without database submissions.
+- **Structured Courses (Option B)**: Teachers can group worksheets into sequential courses and assign them to classes. Students proceed through worksheets in order, with subsequent assignments remaining locked until pre-requisite worksheets are completed.
 
 ---
 

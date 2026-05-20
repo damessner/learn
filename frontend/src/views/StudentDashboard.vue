@@ -27,13 +27,50 @@
       <button @click="fetchAssignments" class="btn btn-secondary">Try Again</button>
     </div>
 
-    <div v-else-if="assignments.length === 0" class="empty-state card glass">
+    <div v-else-if="assignments.length === 0 && courses.length === 0" class="empty-state card glass">
       <span class="empty-emoji">🎉</span>
       <h2>All caught up!</h2>
-      <p>You have no pending worksheets assigned to you at the moment.</p>
+      <p>You have no pending worksheets or courses assigned to you at the moment.</p>
     </div>
 
-    <div v-else class="assignments-grid">
+    <div v-else>
+      <!-- Courses Section -->
+      <div class="section-container" v-if="courses.length > 0">
+        <h2 class="section-title">📚 Assigned Courses</h2>
+        <div class="assignments-grid courses-grid">
+          <div v-for="course in courses" :key="course.course_assignment_id" class="assignment-card card course-card">
+            <h3 class="assignment-title">{{ course.title }}</h3>
+            <p class="assignment-desc">{{ course.description || 'Complete these worksheets in order.' }}</p>
+            
+            <div class="assignment-meta">
+              <div class="meta-item">
+                <span class="meta-label">Worksheets</span>
+                <span class="meta-value">{{ course.total_worksheets }} items</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Due Date</span>
+                <span class="meta-value" :class="{ 'overdue': isOverdue(course.due_date) }">
+                  {{ formatDate(course.due_date) }}
+                </span>
+              </div>
+            </div>
+
+            <div class="card-footer">
+              <router-link 
+                :to="`/student/course/${course.course_assignment_id}`" 
+                class="btn btn-primary btn-play"
+              >
+                Open Course ➔
+              </router-link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Assignments Section -->
+      <div class="section-container" v-if="assignments.length > 0">
+        <h2 class="section-title">📝 Individual Worksheets</h2>
+        <div class="assignments-grid">
       <div v-for="assignment in assignments" :key="assignment.id" class="assignment-card card">
         <div class="card-badge" :class="statusClass(assignment)">
           {{ statusLabel(assignment) }}
@@ -71,6 +108,8 @@
           </router-link>
         </div>
       </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -80,6 +119,7 @@ import { ref, onMounted } from 'vue'
 
 const user = ref(JSON.parse(localStorage.getItem('user')))
 const assignments = ref([])
+const courses = ref([])
 const loading = ref(true)
 const error = ref(null)
 const isEnrolled = ref(true)
@@ -113,6 +153,16 @@ const fetchAssignments = async () => {
         const statusData = await statusResp.json()
         isEnrolled.value = statusData.enrolled
         studentClasses.value = statusData.classes
+        
+        // Fetch assigned courses for enrolled students
+        if (isEnrolled.value) {
+          const courseResp = await fetch(`${API_BASE}/courses/student/assigned`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+          if (courseResp.ok) {
+            courses.value = await courseResp.json()
+          }
+        }
       }
     }
   } catch (err) {
@@ -219,10 +269,26 @@ const statusClass = (assignment) => {
   color: var(--text-muted);
 }
 
+.section-container {
+  margin-bottom: 40px;
+}
+
+.section-title {
+  font-size: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
 .assignments-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
+}
+
+.courses-grid .course-card {
+  background: linear-gradient(to bottom right, var(--surface-light), rgba(59, 130, 246, 0.05));
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .assignment-card {

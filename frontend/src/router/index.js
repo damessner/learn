@@ -5,6 +5,7 @@ import TeacherDashboard from '../views/TeacherDashboard.vue'
 import WorksheetPlayer from '../views/WorksheetPlayer.vue'
 import WorksheetBuilder from '../views/WorksheetBuilder.vue'
 import WorksheetPreview from '../views/WorksheetPreview.vue'
+import CourseView from '../views/CourseView.vue'
 
 const routes = [
   {
@@ -20,6 +21,12 @@ const routes = [
     path: '/student',
     name: 'StudentDashboard',
     component: StudentDashboard,
+    meta: { requiresAuth: true, role: 'student' }
+  },
+  {
+    path: '/student/course/:id',
+    name: 'CourseView',
+    component: CourseView,
     meta: { requiresAuth: true, role: 'student' }
   },
   {
