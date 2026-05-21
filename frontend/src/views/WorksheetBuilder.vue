@@ -95,8 +95,18 @@
             <button @click="addBlock('multiple_choice')" class="btn-add-block">☑️ Multi Choice</button>
             <button @click="addBlock('single_choice')" class="btn-add-block">🔘 Single Choice</button>
             <button @click="addBlock('matching')" class="btn-add-block">🔗 Connect Texts</button>
-            <button @click="addBlock('vocabulary')" class="btn-add-block">📖 Vocabulary</button>
             <button @click="addBlock('short_answer')" class="btn-add-block">📝 Short Answer</button>
+          </div>
+        </div>
+
+        <div class="stem-helper-section card glass mt-4">
+          <h3>📐 STEM Quick Presets</h3>
+          <p class="field-hint mb-2">Click to insert preformatted LaTeX math/science exercises:</p>
+          <div class="stem-presets">
+            <button @click="insertSTEMPreset('quadratic')" class="btn btn-secondary btn-sm">📐 Math: Quadratic Equation (Gap Fill)</button>
+            <button @click="insertSTEMPreset('physics_velocity')" class="btn btn-secondary btn-sm">⚡ Physics: Velocity & Units (Short Answer)</button>
+            <button @click="insertSTEMPreset('chemistry_reaction')" class="btn btn-secondary btn-sm">🧪 Chem: Reaction Balancing (Gap Fill)</button>
+            <button @click="insertSTEMPreset('pythagorean')" class="btn btn-secondary btn-sm">📐 Geometry: Pythagorean (Short Answer)</button>
           </div>
         </div>
       </div>
@@ -131,6 +141,10 @@
               <div v-if="block.type === 'text'" class="editor-row">
                 <label>Text Content (Markdown supported)</label>
                 <textarea v-model="block.content" placeholder="Type instructions or reading text here..." rows="4"></textarea>
+                <div v-if="block.content && (block.content.includes('$') || block.content.includes('$$'))" class="math-preview">
+                  <span class="preview-label">✨ Math Formula Live Preview:</span>
+                  <div class="preview-box" v-math="block.content"></div>
+                </div>
               </div>
 
               <!-- Image Block -->
@@ -162,6 +176,10 @@
                   </div>
                 </div>
                 <input type="text" v-model="block.instruction" placeholder="e.g. Complete the sentences." class="mb-2" />
+                <div v-if="block.instruction && block.instruction.includes('$')" class="math-preview mb-2">
+                  <span class="preview-label">✨ Math Instruction Live Preview:</span>
+                  <div class="preview-box" v-math="block.instruction"></div>
+                </div>
                 <label>Sentence Template (Put correct answers inside curly braces)</label>
                 <textarea 
                   v-model="block.template" 
@@ -169,6 +187,10 @@
                   rows="3"
                 ></textarea>
                 <span class="field-hint">Student sees: She ______ to school already. Correct answer is "has gone".</span>
+                <div v-if="block.template && (block.template.includes('$') || block.template.includes('{'))" class="math-preview mt-2">
+                  <span class="preview-label">✨ Math Template Live Preview:</span>
+                  <div class="preview-box" v-math="getGapFillPreview(block.template)"></div>
+                </div>
               </div>
 
               <!-- Drag & Drop Question -->
@@ -260,6 +282,10 @@
                   </div>
                 </div>
                 <textarea v-model="block.prompt" rows="3" placeholder="Ask students for a short free-text response"></textarea>
+                <div v-if="block.prompt && block.prompt.includes('$')" class="math-preview mt-2">
+                  <span class="preview-label">✨ Math Prompt Live Preview:</span>
+                  <div class="preview-box" v-math="block.prompt"></div>
+                </div>
                 <input type="text" v-model="block.sample_answer" placeholder="Optional sample answer (not shown to students)" class="mt-2" />
                 <input type="text" v-model="block.keywordText" placeholder="Keyword list, comma-separated (for AI-style feedback)" class="mt-2" />
               </div>
@@ -408,7 +434,7 @@
               />
 
               <!-- Static Text Block -->
-              <div v-else-if="block.type === 'text'" class="live-text-card card">{{ block.content || '' }}</div>
+              <div v-else-if="block.type === 'text'" class="live-text-card card" v-math="block.content || ''"></div>
               
               <!-- Static Media/Audio Blocks -->
               <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
@@ -664,6 +690,11 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+
+const getGapFillPreview = (template) => {
+  if (!template) return ''
+  return template.replace(/\{([^}]+)\}/g, ' ______ ')
+}
 import { useRouter, useRoute } from 'vue-router'
 import GapFill from '../components/exercises/GapFill.vue'
 import DragDrop from '../components/exercises/DragDrop.vue'
@@ -775,6 +806,49 @@ onMounted(async () => {
 })
 
 // Block creation helper
+const insertSTEMPreset = (presetType) => {
+  const id = `q_${Math.random().toString(36).substr(2, 9)}`
+  let presetBlock = {}
+
+  if (presetType === 'quadratic') {
+    presetBlock = {
+      id,
+      type: 'gap_fill',
+      points: 3,
+      instruction: 'Solve the quadratic equation using the quadratic formula: $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$',
+      template: 'For the equation $x^2 - 5x + 6 = 0$, we have $a = {1}$, $b = {-5}$, and $c = {6}$. The discriminant $D = b^2 - 4ac$ is {1}. The solutions are $x_1 = {3}$ and $x_2 = {2}$.'
+    }
+  } else if (presetType === 'physics_velocity') {
+    presetBlock = {
+      id,
+      type: 'short_answer',
+      points: 2,
+      prompt: 'A car travels a distance of $d = 100\\text{ km}$ in $t = 1.5\\text{ hours}$. Calculate its average velocity in meters per second ($\\text{m/s}$). (Note: round to 2 decimal places. $1\\text{ m/s} = 3.6\\text{ km/h}$).',
+      sample_answer: '18.52 m/s',
+      keywordText: '18.52 m/s, 18.5 m/s'
+    }
+  } else if (presetType === 'chemistry_reaction') {
+    presetBlock = {
+      id,
+      type: 'gap_fill',
+      points: 3,
+      instruction: 'Balance the combustion reaction of propane.',
+      template: '$$\\text{C}_3\\text{H}_8 + {5}\\text{O}_2 \\rightarrow {3}\\text{CO}_2 + {4}\\text{H}_2\\text{O}$$'
+    }
+  } else if (presetType === 'pythagorean') {
+    presetBlock = {
+      id,
+      type: 'short_answer',
+      points: 2,
+      prompt: 'In a right-angled triangle, the lengths of the two legs are $a = 6\\text{ cm}$ and $b = 8\\text{ cm}$. Find the length of the hypotenuse $c$ in centimeters.',
+      sample_answer: '10 cm',
+      keywordText: '10 cm, 10'
+    }
+  }
+
+  sheet.value.blocks.push(presetBlock)
+}
+
 const addBlock = (type) => {
   const id = `q_${Math.random().toString(36).substr(2, 9)}`
   const baseBlock = { id, type, points: 1 }
@@ -2297,5 +2371,56 @@ const submitLocalPreview = () => {
 
 .ai-divider span {
   padding: 0 10px;
+}
+
+.math-preview {
+  margin-top: 10px;
+  padding: 12px;
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(10px);
+}
+.preview-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+.preview-box {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.stem-helper-section {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px dashed var(--primary);
+  background: rgba(99, 102, 241, 0.02);
+  border-radius: var(--radius-md);
+}
+.stem-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.stem-presets button {
+  text-align: left;
+  justify-content: flex-start;
+  font-size: 13px;
+  padding: 8px 12px;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+.stem-presets button:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: var(--primary);
+  transform: translateY(-1px);
 }
 </style>

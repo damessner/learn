@@ -5,11 +5,11 @@
       <span class="points">{{ points }} pts</span>
     </div>
     
-    <div class="instruction">{{ instruction }}</div>
+    <div class="instruction" v-math="instruction"></div>
 
     <div class="gap-text-container">
       <template v-for="(segment, index) in parsedSegments" :key="index">
-        <span v-if="segment.type === 'text'" class="text-segment">{{ segment.content }}</span>
+        <span v-if="segment.type === 'text'" class="text-segment" v-math="segment.content"></span>
         
         <span v-else class="input-segment" :class="segmentClass(segment.gapIndex)">
           <input 

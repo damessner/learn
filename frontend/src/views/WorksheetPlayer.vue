@@ -32,6 +32,15 @@
           </button>
           <button class="btn btn-secondary no-print" @click="printWorksheet">🖨 Print</button>
           <button 
+            v-if="!isSubmitted"
+            class="btn btn-secondary no-print"
+            :class="{ 'btn-active-style': showScratchpad }"
+            @click="showScratchpad = !showScratchpad"
+            title="Toggle floating sketch workspace"
+          >
+            📝 Scratchpad
+          </button>
+          <button 
             v-if="!isSubmitted" 
             @click="submitWorksheet" 
             :disabled="submitting" 
@@ -110,7 +119,7 @@
           />
 
           <!-- Static Text Block -->
-          <div v-else-if="block.type === 'text'" class="text-card card">{{ block.content || '' }}</div>
+          <div v-else-if="block.type === 'text'" class="text-card card" v-math="block.content || ''"></div>
           
           <!-- Static Media/Audio Blocks -->
           <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
@@ -118,6 +127,14 @@
         </div>
       </div>
     </div>
+    
+    <!-- Student Scratchpad Drawer overlay -->
+    <ScratchpadCanvas
+      v-if="worksheet && worksheet.id"
+      :isOpen="showScratchpad"
+      :assignmentId="String(worksheet.id)"
+      @close="showScratchpad = false"
+    />
   </div>
 </template>
 
@@ -133,6 +150,7 @@ import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
 import Vocabulary from '../components/exercises/Vocabulary.vue'
 import ShortAnswer from '../components/exercises/ShortAnswer.vue'
+import ScratchpadCanvas from '../components/exercises/ScratchpadCanvas.vue'
 
 const route = useRoute()
 const worksheet = ref(null)
@@ -141,6 +159,7 @@ const loading = ref(true)
 const error = ref(null)
 const saving = ref(false)
 const submitting = ref(false)
+const showScratchpad = ref(false)
 
 const isSubmitted = ref(false)
 const feedbackSummary = ref(null)
@@ -476,6 +495,13 @@ const getSingleCorrectAnswerData = (block) => {
   border: 1px solid var(--border-color);
   padding: 6px 12px;
   border-radius: 20px;
+}
+
+.btn-active-style {
+  background-color: var(--primary-light) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  box-shadow: 0 0 0 2px var(--primary) !important;
 }
 
 .worksheet-body {

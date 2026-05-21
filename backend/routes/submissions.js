@@ -303,7 +303,41 @@ function setsEqual(a, b) {
   return true;
 }
 
+function checkSTEMMatch(student, correct) {
+  const sStr = student.toLowerCase().trim().replace(',', '.');
+  const cStr = correct.toLowerCase().trim().replace(',', '.');
+  
+  if (sStr === cStr) return true;
+
+  // Regex to match standard/scientific numbers (+-12.3e-4) and optional units (m/s^2, kg, etc.)
+  const regex = /^([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*([a-z0-9\/\s\-*^]+)?$/;
+  
+  const sMatch = sStr.match(regex);
+  const cMatch = cStr.match(regex);
+  
+  if (sMatch && cMatch) {
+    const sVal = parseFloat(sMatch[1]);
+    const cVal = parseFloat(cMatch[1]);
+    
+    const sUnit = (sMatch[2] || '').replace(/\s+/g, '');
+    const cUnit = (cMatch[2] || '').replace(/\s+/g, '');
+    
+    if (sUnit === cUnit) {
+      if (cVal === 0) return sVal === 0;
+      const diff = Math.abs(sVal - cVal);
+      const tolerance = Math.abs(cVal) * 0.02; // 2% tolerance
+      if (diff <= tolerance) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function isAcceptableVariant(student, correct) {
+  // Try STEM numerical and unit matching first
+  if (checkSTEMMatch(student, correct)) return true;
+
   // Allow minor typos: check if 80%+ character overlap (simple)
   if (Math.abs(student.length - correct.length) > 2) return false;
   let matches = 0;
@@ -361,4 +395,6 @@ router.get('/student/summary', requireAuth, (req, res) => {
   });
 });
 
+router._checkSTEMMatch = checkSTEMMatch;
+router._isAcceptableVariant = isAcceptableVariant;
 module.exports = router;

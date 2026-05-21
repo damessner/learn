@@ -5,7 +5,7 @@
       <span class="points">{{ points }} pts</span>
     </div>
 
-    <div class="instruction">{{ instruction }}</div>
+    <div class="instruction" v-math="instruction"></div>
 
     <div class="options-container">
       <label 
@@ -22,7 +22,7 @@
           :disabled="disabled || isGraded"
           class="option-radio"
         />
-        <span class="option-text">{{ option }}</span>
+        <span class="option-text" v-math="option"></span>
         
         <!-- Feedback indicators -->
         <span v-if="isGraded" class="feedback-indicator">

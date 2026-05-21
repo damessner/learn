@@ -4,7 +4,7 @@
       <h3>📝 Short Answer</h3>
       <span v-if="points" class="points">{{ points }} pts</span>
     </div>
-    <p class="prompt">{{ prompt || instruction || 'Write your answer.' }}</p>
+    <p class="prompt" v-math="prompt || instruction || 'Write your answer.'"></p>
     <textarea
       :value="modelValue || ''"
       :disabled="disabled"
