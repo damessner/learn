@@ -7,6 +7,14 @@ const router = express.Router();
 const MIN_SHORT_ANSWER_LENGTH = 20;
 const CLARITY_LENGTH_TARGET = 30;
 
+function parseJson(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function ensureGuestAssignmentAccess(req, res) {
   if (req.user.isGuest && String(req.user.assignmentId) !== String(req.params.assignmentId)) {
     res.status(403).json({ error: 'Guest token is restricted to one assignment' });
@@ -37,6 +45,9 @@ function ensureClassEnrollment(req, res, db, assignment) {
 router.get('/assignment/:assignmentId', requireAuth, (req, res) => {
   if (!ensureGuestAssignmentAccess(req, res)) return;
   const db = getDB();
+  const assignment = db.prepare('SELECT * FROM assignments WHERE id = ?').get(req.params.assignmentId);
+  if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+  if (!ensureClassEnrollment(req, res, db, assignment)) return;
   const submission = db.prepare(`
     SELECT * FROM submissions
     WHERE assignment_id = ? AND user_id = ?
@@ -49,7 +60,7 @@ router.get('/assignment/:assignmentId', requireAuth, (req, res) => {
     WHERE assignment_id = ? AND user_id = ?
     ORDER BY attempt_no DESC
   `).all(req.params.assignmentId, req.user.userId);
-  res.json({ ...submission, answers: JSON.parse(submission.answers), attempts });
+  res.json({ ...submission, answers: parseJson(submission.answers, {}), attempts });
 });
 
 // ─── Save progress (auto-save, not final) ─────────────────────────────────────
@@ -107,83 +118,95 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
 
   const retryPolicy = assignment.retry_policy || 'single';
   const maxAttempts = Math.max(1, Number(assignment.max_attempts) || 1);
-
-  // Existing aggregate submission row
-  const existing = db.prepare(
-    'SELECT * FROM submissions WHERE assignment_id = ? AND user_id = ?'
-  ).get(assignmentId, userId);
-
-  const attemptsSoFar = db.prepare(`
-    SELECT COUNT(*) as cnt
-    FROM submission_attempts
-    WHERE assignment_id = ? AND user_id = ?
-  `).get(assignmentId, userId).cnt || 0;
-
-  if (retryPolicy === 'single' && attemptsSoFar >= 1) {
-    return res.status(409).json({ error: 'This assignment allows only one submission attempt.' });
+  const content = parseJson(assignment.content, null);
+  if (!content || !Array.isArray(content.blocks)) {
+    return res.status(500).json({ error: 'Stored worksheet content is invalid' });
   }
-  if (retryPolicy === 'capped' && attemptsSoFar >= maxAttempts) {
-    return res.status(409).json({ error: `Maximum attempts reached (${maxAttempts}).` });
-  }
-
-  // Score the submission
-  const content = JSON.parse(assignment.content);
   const { score, maxScore, feedback } = scoreAnswers(content.blocks, answers);
 
-  const attemptNo = attemptsSoFar + 1;
-  const submissionId = existing ? existing.id : uuidv4();
-  const attemptId = uuidv4();
+  try {
+    const result = db.transaction(() => {
+      const existing = db.prepare(
+        'SELECT * FROM submissions WHERE assignment_id = ? AND user_id = ?'
+      ).get(assignmentId, userId);
+      const attemptsSoFar = db.prepare(`
+        SELECT COUNT(*) as cnt
+        FROM submission_attempts
+        WHERE assignment_id = ? AND user_id = ?
+      `).get(assignmentId, userId).cnt || 0;
 
-  db.prepare(`
-    INSERT INTO submission_attempts (id, assignment_id, user_id, attempt_no, answers, score, max_score, submitted_at, feedback_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
-  `).run(attemptId, assignmentId, userId, attemptNo, JSON.stringify(answers), score, maxScore, JSON.stringify(feedback || {}));
-
-  let finalScore = score;
-  let finalMaxScore = maxScore;
-  let finalAnswers = answers;
-  if (existing) {
-    if (retryPolicy === 'best') {
-      const existingPct = existing.max_score > 0 ? existing.score / existing.max_score : 0;
-      const newPct = maxScore > 0 ? score / maxScore : 0;
-      if (existingPct >= newPct) {
-        finalScore = existing.score || 0;
-        finalMaxScore = existing.max_score;
-        finalAnswers = JSON.parse(existing.answers || '{}');
+      if (retryPolicy === 'single' && attemptsSoFar >= 1) {
+        const error = new Error('This assignment allows only one submission attempt.');
+        error.statusCode = 409;
+        throw error;
       }
-    }
-    db.prepare(`
-      UPDATE submissions SET
-        answers = ?, score = ?, max_score = ?, submitted_at = datetime('now')
-      WHERE id = ?
-    `).run(JSON.stringify(finalAnswers), finalScore, finalMaxScore, submissionId);
-  } else {
-    db.prepare(`
-      INSERT INTO submissions (id, assignment_id, user_id, answers, score, max_score, submitted_at)
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-    `).run(submissionId, assignmentId, userId, JSON.stringify(finalAnswers), finalScore, finalMaxScore);
-  }
+      if (retryPolicy === 'capped' && attemptsSoFar >= maxAttempts) {
+        const error = new Error(`Maximum attempts reached (${maxAttempts}).`);
+        error.statusCode = 409;
+        throw error;
+      }
 
-  res.json({
-    score: finalScore,
-    maxScore: finalMaxScore,
-    percentage: finalMaxScore > 0 ? Math.round((finalScore / finalMaxScore) * 100) : 0,
-    feedback,
-    attemptNo,
-    retryPolicy,
-    attemptsRemaining: retryPolicy === 'single' ? 0 : retryPolicy === 'capped' ? Math.max(0, maxAttempts - attemptNo) : null
-  });
+      const attemptNo = attemptsSoFar + 1;
+      const submissionId = existing ? existing.id : uuidv4();
+      const attemptId = uuidv4();
+
+      db.prepare(`
+        INSERT INTO submission_attempts (id, assignment_id, user_id, attempt_no, answers, score, max_score, submitted_at, feedback_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+      `).run(attemptId, assignmentId, userId, attemptNo, JSON.stringify(answers), score, maxScore, JSON.stringify(feedback || {}));
+
+      let finalScore = score;
+      let finalMaxScore = maxScore;
+      let finalAnswers = answers;
+      if (existing) {
+        if (retryPolicy === 'best') {
+          const existingPct = existing.max_score > 0 ? existing.score / existing.max_score : 0;
+          const newPct = maxScore > 0 ? score / maxScore : 0;
+          if (existingPct >= newPct) {
+            finalScore = existing.score || 0;
+            finalMaxScore = existing.max_score;
+            finalAnswers = parseJson(existing.answers, {});
+          }
+        }
+        db.prepare(`
+          UPDATE submissions SET
+            answers = ?, score = ?, max_score = ?, submitted_at = datetime('now')
+          WHERE id = ?
+        `).run(JSON.stringify(finalAnswers), finalScore, finalMaxScore, submissionId);
+      } else {
+        db.prepare(`
+          INSERT INTO submissions (id, assignment_id, user_id, answers, score, max_score, submitted_at)
+          VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        `).run(submissionId, assignmentId, userId, JSON.stringify(finalAnswers), finalScore, finalMaxScore);
+      }
+
+      return {
+        score: finalScore,
+        maxScore: finalMaxScore,
+        percentage: finalMaxScore > 0 ? Math.round((finalScore / finalMaxScore) * 100) : 0,
+        feedback,
+        attemptNo,
+        retryPolicy,
+        attemptsRemaining: retryPolicy === 'single' ? 0 : retryPolicy === 'capped' ? Math.max(0, maxAttempts - attemptNo) : null
+      };
+    })();
+
+    res.json(result);
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message || 'Submission failed' });
+  }
 });
 
 // ─── Scoring engine ───────────────────────────────────────────────────────────
 function scoreAnswers(blocks, answers) {
+  const answerMap = answers && typeof answers === 'object' ? answers : {};
   let score = 0;
   let maxScore = 0;
   const feedback = {};
 
   for (const block of blocks) {
     const blockPoints = block.points || 0;
-    const studentAnswer = answers[block.id];
+    const studentAnswer = answerMap[block.id];
 
     if (!blockPoints || !block.id) continue;
     maxScore += blockPoints;

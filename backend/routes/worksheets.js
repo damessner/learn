@@ -9,6 +9,27 @@ const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 const say = require('say');
 
 const router = express.Router();
+const MAX_TTS_TEXT_LENGTH = 500;
+const rawUploadDir = process.env.UPLOAD_DIR || './uploads';
+const UPLOAD_DIR = path.isAbsolute(rawUploadDir)
+  ? rawUploadDir
+  : path.resolve(__dirname, '..', rawUploadDir);
+
+function parseJson(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function serializeWorksheetRow(row) {
+  return {
+    ...row,
+    content: parseJson(row.content, { blocks: [] }),
+    rubric: row.rubric_json ? parseJson(row.rubric_json, { criteria: [] }) : { criteria: [] }
+  };
+}
 
 function canManageWorksheet(req, worksheetRow) {
   if (!worksheetRow) return false;
@@ -67,12 +88,17 @@ router.post('/tts', requireAuth, requireRole('teacher', 'admin'), async (req, re
     }
 
     const ttsText = String(text).trim();
+    if (ttsText.length > MAX_TTS_TEXT_LENGTH) {
+      return res.status(400).json({ error: `Text must be ${MAX_TTS_TEXT_LENGTH} characters or fewer` });
+    }
     const ttsLanguage = language || 'de-AT';
     const ttsEngine = engine || 'cloud';
+    if (!['cloud', 'local'].includes(ttsEngine)) {
+      return res.status(400).json({ error: 'Unsupported TTS engine' });
+    }
     selectedEngine = ttsEngine;
 
-    const uploadDir = process.env.UPLOAD_DIR || './uploads';
-    const audioFolder = path.join(uploadDir, 'audio');
+    const audioFolder = path.join(UPLOAD_DIR, 'audio');
     if (!fs.existsSync(audioFolder)) {
       fs.mkdirSync(audioFolder, { recursive: true });
     }
@@ -259,7 +285,7 @@ router.post('/templates/:id/clone', requireAuth, requireRole('teacher', 'admin')
     );
 
     const cloned = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(id);
-    res.status(201).json({ ...cloned, content: JSON.parse(cloned.content) });
+    res.status(201).json(serializeWorksheetRow(cloned));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -303,7 +329,7 @@ router.get('/:id', requireAuth, (req, res) => {
 
   // Students get a version with correct answers stripped
   if (req.user.role === 'student') {
-    const content = JSON.parse(worksheet.content);
+    const content = parseJson(worksheet.content, { blocks: [] });
     content.blocks = content.blocks.map(block => {
       const stripped = { ...block };
       if (block.type === 'gap_fill') {
@@ -348,9 +374,7 @@ router.get('/:id', requireAuth, (req, res) => {
   }
 
   res.json({
-    ...worksheet,
-    content: JSON.parse(worksheet.content),
-    rubric: worksheet.rubric_json ? JSON.parse(worksheet.rubric_json) : { criteria: [] }
+    ...serializeWorksheetRow(worksheet)
   });
 });
 
@@ -384,11 +408,7 @@ router.post('/', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   );
 
   const worksheet = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(id);
-  res.status(201).json({
-    ...worksheet,
-    content: JSON.parse(worksheet.content),
-    rubric: worksheet.rubric_json ? JSON.parse(worksheet.rubric_json) : { criteria: [] }
-  });
+  res.status(201).json(serializeWorksheetRow(worksheet));
 });
 
 // ─── Update worksheet ──────────────────────────────────────────────────────────
@@ -429,11 +449,7 @@ router.put('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   );
 
   const updated = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(req.params.id);
-  res.json({
-    ...updated,
-    content: JSON.parse(updated.content),
-    rubric: updated.rubric_json ? JSON.parse(updated.rubric_json) : { criteria: [] }
-  });
+  res.json(serializeWorksheetRow(updated));
 });
 
 // ─── Delete worksheet ──────────────────────────────────────────────────────────
@@ -543,7 +559,7 @@ router.get('/assignments/:assignmentId/results', requireAuth, requireRole('teach
     WHERE s.assignment_id = ?
     ORDER BY u.name
   `).all(req.params.assignmentId);
-  res.json(results.map(r => ({ ...r, answers: JSON.parse(r.answers) })));
+  res.json(results.map(r => ({ ...r, answers: parseJson(r.answers, {}) })));
 });
 
 // ─── Duplicate worksheet ──────────────────────────────────────────────────────────
@@ -569,7 +585,7 @@ router.post('/:id/duplicate', requireAuth, requireRole('teacher', 'admin'), (req
   );
 
   const cloned = db.prepare('SELECT * FROM worksheets WHERE id = ?').get(id);
-  res.status(201).json({ ...cloned, content: JSON.parse(cloned.content) });
+  res.status(201).json(serializeWorksheetRow(cloned));
 });
 
 // ─── Assignment Statistics ─────────────────────────────────────────────────────
