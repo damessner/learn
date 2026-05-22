@@ -50,7 +50,7 @@
         @click="switchTab(tab)"
         :class="['tab-btn', { active: activeTab === tab }]"
       >
-        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : tab === 'courses' ? 'Courses' : 'Templates Library' }}
+        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : tab === 'courses' ? 'Courses' : tab === 'library' ? '🏛️ System Library' : 'Templates Library' }}
       </button>
     </div>
     <!-- Worksheets Tab -->
@@ -104,6 +104,7 @@
                 <span :class="['badge', sheet.is_published ? 'badge-success' : 'badge-warning']">
                   {{ sheet.is_published ? 'Published' : 'Draft' }}
                 </span>
+                <span v-if="sheet.in_library" class="badge" style="background:#6366f1;color:white;margin-left:4px;font-size:0.7rem;padding:2px 6px;border-radius:4px;">📚 Library</span>
               </td>
               <td>
                 <div class="action-buttons">
@@ -118,6 +119,22 @@
                   </router-link>
                   <button @click="duplicateWorksheet(sheet.id)" class="btn-icon" title="Duplicate Worksheet">
                     <span>📋</span>
+                  </button>
+                  <button
+                    v-if="!sheet.in_library"
+                    @click="publishWorksheetToLibrary(sheet.id)"
+                    class="btn-icon"
+                    title="Publish to System Library"
+                  >
+                    <span>📤</span>
+                  </button>
+                  <button
+                    v-else
+                    @click="unpublishWorksheetFromLibrary(sheet.id)"
+                    class="btn-icon"
+                    title="Remove from System Library"
+                  >
+                    <span>🏛️</span>
                   </button>
                   <button @click="deleteWorksheet(sheet.id)" class="btn-icon btn-icon-danger" title="Delete">
                     <span>🗑️</span>
@@ -462,6 +479,94 @@
     </div>
 
     <!-- Templates Tab -->
+    <!-- Library Tab -->
+    <div v-if="activeTab === 'library'" class="tab-content">
+      <div class="section-actions-header">
+        <div>
+          <h2>🏛️ System Library</h2>
+          <p class="subtitle">Browse, rate, and clone worksheets shared in the system library. Publish your own worksheets from the Worksheets tab.</p>
+        </div>
+      </div>
+
+      <!-- Search & Sort Bar -->
+      <div class="ws-filter-bar card" style="margin-bottom: 16px; padding: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <input
+          type="text"
+          v-model="librarySearch"
+          @input="fetchLibrary"
+          placeholder="Search title, subject, tags..."
+          class="library-filter-input"
+        />
+        <select v-model="librarySortBy" @change="fetchLibrary" class="library-filter-select">
+          <option value="student_rating">Sort by Student Rating</option>
+          <option value="teacher_rating">Sort by Teacher Rating</option>
+          <option value="title">Sort by Title</option>
+        </select>
+        <select v-model="librarySortOrder" @change="fetchLibrary" class="library-filter-select">
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
+      </div>
+
+      <div v-if="loadingLibrary" class="spinner-container"><div class="spinner"></div></div>
+
+      <div v-else-if="libraryWorksheets.length === 0" class="empty-state card glass">
+        <span>🏛️</span>
+        <h3>Library is Empty</h3>
+        <p>No worksheets have been published to the system library yet. Publish one of your own worksheets by clicking "Publish to Library" from the Worksheets tab.</p>
+      </div>
+
+      <div v-else class="templates-grid">
+        <div
+          v-for="item in libraryWorksheets"
+          :key="item.id"
+          class="template-card card glass library-card"
+        >
+          <div class="template-tag">{{ item.subject || 'General' }}</div>
+          <div class="library-source-badge" v-if="item.library_source">{{ item.library_source }}</div>
+          <h3>{{ item.title }}</h3>
+          <p class="template-desc">{{ item.description }}</p>
+          <div class="template-meta">
+            <span class="meta-item">🎓 {{ item.grade_level || 'All' }}</span>
+            <span class="meta-item">👤 {{ item.author_name }}</span>
+          </div>
+
+          <!-- Ratings display -->
+          <div class="library-ratings">
+            <span class="rating-chip" title="Student average rating">
+              🎓 {{ item.student_avg != null ? item.student_avg.toFixed(1) + '★' : 'No ratings' }}
+              <span class="rating-count" v-if="item.student_count > 0">({{ item.student_count }})</span>
+            </span>
+            <span class="rating-chip" title="Teacher average rating">
+              👨‍🏫 {{ item.teacher_avg != null ? item.teacher_avg.toFixed(1) + '★' : 'No ratings' }}
+              <span class="rating-count" v-if="item.teacher_count > 0">({{ item.teacher_count }})</span>
+            </span>
+          </div>
+
+          <!-- Teacher star rating -->
+          <div class="library-rate-row">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Your rating:</span>
+            <button
+              v-for="star in 5"
+              :key="star"
+              class="star-btn-sm"
+              :class="{ filled: star <= (libraryHoverRatings[item.id] || libraryMyRatings[item.id] || 0) }"
+              @mouseenter="libraryHoverRatings[item.id] = star"
+              @mouseleave="libraryHoverRatings[item.id] = 0"
+              @click="rateLibraryItem(item.id, star)"
+            >★</button>
+          </div>
+
+          <div class="library-card-actions">
+            <button @click="cloneFromLibrary(item.id)" class="btn btn-primary btn-block btn-template-action">
+              📋 Clone to My Worksheets
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Templates Library Tab -->
     <div v-if="activeTab === 'templates'" class="tab-content">
       <div v-if="loading" class="spinner-container">
         <div class="spinner"></div>
@@ -1116,7 +1221,7 @@ const currentUser = ref(null)
 
 // Computed availableTabs based on role
 const availableTabs = computed(() => {
-  return ['worksheets', 'courses', 'assignments', 'classes', 'templates']
+  return ['worksheets', 'courses', 'assignments', 'classes', 'library', 'templates']
 })
 
 const showAdminConsole = ref(false)
@@ -1271,6 +1376,15 @@ const newStudentForm = ref({ name: '', email: '', role: 'student' })
 const templates = ref([])
 const templateSubjects = ['Englisch', 'Mathematik', 'Deutsch', 'Geographie', 'Biologie', 'Chemie', 'Physik']
 const activeTemplateSubject = ref('Englisch')
+
+// Library state
+const libraryWorksheets = ref([])
+const loadingLibrary = ref(false)
+const librarySearch = ref('')
+const librarySortBy = ref('student_rating')
+const librarySortOrder = ref('desc')
+const libraryMyRatings = ref({})
+const libraryHoverRatings = ref({})
 
 const getTemplatesBySubject = (subject) => {
   return templates.value.filter(tpl => tpl.subject === subject)
@@ -1627,6 +1741,8 @@ const switchTab = async (tab) => {
     await fetchClasses()
   } else if (tab === 'templates') {
     await fetchTemplates()
+  } else if (tab === 'library') {
+    await fetchLibrary()
   }
 }
 
@@ -1990,6 +2106,105 @@ const useTemplate = async (templateId) => {
     alert('Template cloned successfully!')
     activeTab.value = 'worksheets'
     await fetchData()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+// ─── Library Actions ────────────────────────────────────────────────────────
+const fetchLibrary = async () => {
+  loadingLibrary.value = true
+  const token = localStorage.getItem('token')
+  try {
+    const params = new URLSearchParams({
+      search: librarySearch.value,
+      sortBy: librarySortBy.value,
+      order: librarySortOrder.value
+    })
+    const res = await fetch(`${API_BASE}/library/worksheets?${params}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      libraryWorksheets.value = await res.json()
+    }
+  } catch (err) {
+    console.error('Failed to load library:', err)
+  } finally {
+    loadingLibrary.value = false
+  }
+}
+
+const cloneFromLibrary = async (worksheetId) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/library/worksheets/${worksheetId}/clone`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Clone failed')
+    alert('Worksheet cloned to your worksheets!')
+    activeTab.value = 'worksheets'
+    await fetchData()
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const rateLibraryItem = async (worksheetId, rating) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/library/ratings/worksheet/${worksheetId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ rating })
+    })
+    if (res.ok) {
+      const data = await res.json()
+      libraryMyRatings.value[worksheetId] = data.my_rating
+      // Update the item in the list
+      const item = libraryWorksheets.value.find(w => w.id === worksheetId)
+      if (item) {
+        item.student_avg = data.student_avg
+        item.student_count = data.student_count
+        item.teacher_avg = data.teacher_avg
+        item.teacher_count = data.teacher_count
+      }
+    }
+  } catch (err) {
+    console.error('Rating failed:', err)
+  }
+}
+
+const publishWorksheetToLibrary = async (worksheetId) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/library/worksheets/${worksheetId}/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ source: 'teacher' })
+    })
+    if (!res.ok) throw new Error('Publish failed')
+    const ws = worksheets.value.find(w => w.id === worksheetId)
+    if (ws) {
+      ws.in_library = 1
+      ws.is_published = 1
+    }
+    alert('Worksheet published to system library!')
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+const unpublishWorksheetFromLibrary = async (worksheetId) => {
+  const token = localStorage.getItem('token')
+  try {
+    const res = await fetch(`${API_BASE}/library/worksheets/${worksheetId}/unpublish`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Unpublish failed')
+    const ws = worksheets.value.find(w => w.id === worksheetId)
+    if (ws) ws.in_library = 0
   } catch (err) {
     alert(err.message)
   }
@@ -2804,5 +3019,96 @@ const importCSVStudents = async () => {
 .empty-state p {
   color: var(--text-muted);
   max-width: 400px;
+}
+
+/* Library tab styles */
+.library-card {
+  position: relative;
+}
+
+.library-source-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.library-ratings {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.rating-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.rating-count {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.library-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.star-btn-sm {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  color: var(--border-color);
+  padding: 0 1px;
+  min-height: unset;
+  box-shadow: none;
+  transition: color 0.15s, transform 0.1s;
+  line-height: 1;
+}
+
+.star-btn-sm.filled {
+  color: #f59e0b;
+}
+
+.star-btn-sm:hover {
+  transform: scale(1.2);
+}
+
+.library-card-actions {
+  margin-top: auto;
+}
+
+.library-filter-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.library-filter-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
 }
 </style>

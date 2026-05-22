@@ -66,6 +66,25 @@
           <div class="progress-fill" :style="{ width: `${feedbackSummary.percentage}%` }"></div>
         </div>
         <p class="review-note">You can review your correct and incorrect answers below.</p>
+
+        <!-- Star rating widget (student rates the worksheet after submission) -->
+        <div class="rating-section no-print">
+          <p class="rating-label">Rate this worksheet:</p>
+          <div class="star-row">
+            <button
+              v-for="star in 5"
+              :key="star"
+              class="star-btn"
+              :class="{ filled: star <= (hoverRating || myRating) }"
+              @mouseenter="hoverRating = star"
+              @mouseleave="hoverRating = 0"
+              @click="submitRating(star)"
+              :title="`${star} star${star > 1 ? 's' : ''}`"
+            >★</button>
+          </div>
+          <span v-if="myRating" class="rating-thanks">Thanks for your feedback! ({{ myRating }}/5)</span>
+        </div>
+
         <div class="review-toggle no-print">
           <button @click="showReview = !showReview" class="btn btn-secondary">
             {{ showReview ? 'Hide Review' : 'Review Answers' }}
@@ -121,10 +140,16 @@
           <!-- Static Text Block -->
           <div v-else-if="block.type === 'text'" class="text-card card" v-math="block.content || ''"></div>
           
-          <!-- Static Media/Audio Blocks -->
+          <!-- Static Media/Audio/Video Blocks -->
           <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
           <AudioBlock v-else-if="block.type === 'audio'" v-bind="block" />
           <ReadAloudBlock v-else-if="block.type === 'tts_text'" v-bind="block" />
+          <VideoBlock
+            v-else-if="block.type === 'video'"
+            v-bind="block"
+            v-model="answers[block.id]"
+            :disabled="isSubmitted"
+          />
         </div>
       </div>
     </div>
@@ -150,6 +175,7 @@ import Matching from '../components/exercises/Matching.vue'
 import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
 import ReadAloudBlock from '../components/exercises/ReadAloudBlock.vue'
+import VideoBlock from '../components/exercises/VideoBlock.vue'
 import Vocabulary from '../components/exercises/Vocabulary.vue'
 import ShortAnswer from '../components/exercises/ShortAnswer.vue'
 import Flashcards from '../components/exercises/Flashcards.vue'
@@ -180,6 +206,10 @@ const parseStoredBoolean = (value, fallback = false) => {
 }
 const readAloudEnabled = ref(parseStoredBoolean(localStorage.getItem('readAloudEnabled'), true))
 const hintLevel = ref({})
+
+// Rating state
+const myRating = ref(null)
+const hoverRating = ref(0)
 
 const API_BASE = '/api'
 let autosaveTimer = null
@@ -432,6 +462,25 @@ const getSingleCorrectAnswerData = (block) => {
   return blockFeedback?.correctAnswer !== undefined ? blockFeedback.correctAnswer : null
 }
 
+const submitRating = async (stars) => {
+  if (!worksheet.value) return
+  const token = localStorage.getItem('token')
+  try {
+    const resp = await fetch(`${API_BASE}/library/ratings/worksheet/${worksheet.value.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ rating: stars })
+    })
+    if (resp.ok) {
+      myRating.value = stars
+    } else {
+      console.warn('Rating could not be saved (server error).')
+    }
+  } catch {
+    console.warn('Rating could not be saved (network error).')
+  }
+}
+
 </script>
 
 <style scoped>
@@ -589,6 +638,50 @@ const getSingleCorrectAnswerData = (block) => {
 .review-note {
   font-size: 14px;
   color: var(--text-muted);
+  font-weight: 600;
+}
+
+.rating-section {
+  margin: 20px 0 8px;
+}
+
+.rating-label {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.star-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  cursor: pointer;
+  color: var(--border-color);
+  padding: 0 2px;
+  min-height: unset;
+  box-shadow: none;
+  transition: color 0.15s, transform 0.1s;
+  line-height: 1;
+}
+
+.star-btn.filled {
+  color: #f59e0b;
+}
+
+.star-btn:hover {
+  transform: scale(1.2);
+}
+
+.rating-thanks {
+  font-size: 0.85rem;
+  color: var(--success);
   font-weight: 600;
 }
 </style>

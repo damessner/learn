@@ -76,10 +76,11 @@
           <!-- Static Text Block -->
           <div v-else-if="block.type === 'text'" class="text-card card">{{ block.content || '' }}</div>
           
-          <!-- Static Media/Audio Blocks -->
+          <!-- Static Media/Audio/Video Blocks -->
           <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
           <AudioBlock v-else-if="block.type === 'audio'" v-bind="block" />
           <ReadAloudBlock v-else-if="block.type === 'tts_text'" v-bind="block" />
+          <VideoBlock v-else-if="block.type === 'video'" v-bind="block" v-model="answers[block.id]" :disabled="isSubmitted" />
         </div>
       </div>
     </div>
@@ -97,6 +98,7 @@ import Matching from '../components/exercises/Matching.vue'
 import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
 import ReadAloudBlock from '../components/exercises/ReadAloudBlock.vue'
+import VideoBlock from '../components/exercises/VideoBlock.vue'
 import Vocabulary from '../components/exercises/Vocabulary.vue'
 
 const route = useRoute()
