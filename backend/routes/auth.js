@@ -14,6 +14,7 @@ const DEV_MS_LOGIN_SECRET_PLACEHOLDER = 'change_me_for_dev';
 const JWT_SECRET = process.env.JWT_SECRET || DEV_JWT_SECRET_PLACEHOLDER;
 const JWT_EXPIRES = '24h';
 const ALLOW_INSECURE_MS_LOGIN = process.env.ALLOW_INSECURE_MS_LOGIN === 'true' && process.env.NODE_ENV !== 'production';
+const MIN_PASSWORD_LENGTH = 8;
 const DEV_MS_LOGIN_SECRET = (
   process.env.DEV_MS_LOGIN_SECRET &&
   process.env.DEV_MS_LOGIN_SECRET.trim() &&
@@ -49,6 +50,7 @@ function safeSecretEquals(expected, provided) {
 }
 
 const PBKDF2_ITERATIONS = 310000;
+const TIMING_SAFE_FALLBACK_HASH = `${PBKDF2_ITERATIONS}:${'00'.repeat(16)}:${'00'.repeat(64)}`;
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -123,6 +125,7 @@ router.post('/login', loginLimiter, (req, res) => {
     `).get(loweredUser, loweredUser);
     
     if (!user || !user.password_hash) {
+      verifyPassword(password, TIMING_SAFE_FALLBACK_HASH);
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
@@ -177,7 +180,10 @@ router.post('/microsoft', loginLimiter, async (req, res) => {
     if (idToken) {
       profile = await verifyMicrosoftIdToken(idToken);
     } else if (ALLOW_INSECURE_MS_LOGIN) {
-      if (DEV_MS_LOGIN_SECRET && !safeSecretEquals(DEV_MS_LOGIN_SECRET, devSecret)) {
+      if (!DEV_MS_LOGIN_SECRET) {
+        return res.status(503).json({ error: 'Development Microsoft login is not configured securely on this server.' });
+      }
+      if (!safeSecretEquals(DEV_MS_LOGIN_SECRET, devSecret)) {
         return res.status(401).json({ error: 'Invalid development login secret' });
       }
       if (!effectiveFallbackName || effectiveFallbackName.trim().length < 2) {
@@ -362,6 +368,9 @@ router.post('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) =
   const { name, email, username, role, password } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
   if (!role || !['student', 'teacher', 'admin'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (password && String(password).length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+  }
   
   // Only admin can create another admin or teacher
   if (role !== 'student' && req.user.role !== 'admin') {
@@ -406,6 +415,9 @@ router.post('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) =
 // ─── Update User (admin/teacher only) ──────────────────────────────────────────
 router.put('/users/:id', requireAuth, requireRole('admin', 'teacher'), (req, res) => {
   const { name, email, username, role, password } = req.body;
+  if (password && String(password).length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+  }
   
   try {
     const db = getDB();
@@ -562,8 +574,8 @@ router.post('/change-password', requireAuth, (req, res) => {
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: 'currentPassword and newPassword are required' });
   }
-  if (newPassword.length < 6) {
-    return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  if (newPassword.length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters` });
   }
   try {
     const db = getDB();
@@ -613,6 +625,9 @@ router.post('/register-teacher', (req, res) => {
   const { token, name, username, password, email } = req.body;
   if (!token || !name || !username || !password) {
     return res.status(400).json({ error: 'Missing required registration fields' });
+  }
+  if (String(password).length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
   }
   try {
     const db = getDB();

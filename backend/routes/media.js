@@ -8,8 +8,26 @@ const { requireAuth } = require('./auth');
 
 const router = express.Router();
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
+const rawUploadDir = process.env.UPLOAD_DIR || './uploads';
+const UPLOAD_DIR = path.isAbsolute(rawUploadDir)
+  ? rawUploadDir
+  : path.resolve(__dirname, '..', rawUploadDir);
 const MAX_SIZE_MB = parseInt(process.env.UPLOAD_MAX_SIZE_MB || '50');
+
+function getPagination(req, defaultPageSize = 50, maxPageSize = 200) {
+  const pageRaw = Number(req.query.page);
+  const pageSizeRaw = Number(req.query.pageSize);
+  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+    ? Math.min(Math.floor(pageSizeRaw), maxPageSize)
+    : defaultPageSize;
+  const offset = (page - 1) * pageSize;
+  return { page, pageSize, offset };
+}
+
+function hasPaginationQuery(req) {
+  return req.query.page !== undefined || req.query.pageSize !== undefined;
+}
 
 // Ensure upload directories exist
 ['images', 'audio'].forEach(dir => {
@@ -46,7 +64,7 @@ const upload = multer({
 });
 
 // ─── Upload media file ────────────────────────────────────────────────────────
-router.post('/upload', requireAuth, upload.single('file'), (req, res) => {
+router.post('/upload', requireAuth, requireRole('teacher', 'admin'), upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const isAudio = req.file.mimetype.startsWith('audio/');
@@ -73,20 +91,31 @@ router.post('/upload', requireAuth, upload.single('file'), (req, res) => {
 });
 
 // ─── List media (teacher) ──────────────────────────────────────────────────────
-router.get('/', requireAuth, (req, res) => {
+router.get('/', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   const db = getDB();
+  const { page, pageSize, offset } = getPagination(req);
+  const whereClause = req.user.role === 'admin' ? '' : 'WHERE m.uploaded_by = ?';
+  const params = req.user.role === 'admin' ? [] : [req.user.userId];
   const files = db.prepare(`
     SELECT m.*, u.name as uploader_name
     FROM media_files m
     LEFT JOIN users u ON u.id = m.uploaded_by
+    ${whereClause}
     ORDER BY m.created_at DESC
-    LIMIT 100
-  `).all();
-  res.json(files);
+    LIMIT ? OFFSET ?
+  `).all(...params, pageSize, offset);
+  if (!hasPaginationQuery(req)) return res.json(files);
+
+  const total = db.prepare(`
+    SELECT COUNT(*) as cnt
+    FROM media_files m
+    ${whereClause}
+  `).get(...params).cnt || 0;
+  res.json({ data: files, pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } });
 });
 
 // ─── Delete media ──────────────────────────────────────────────────────────────
-router.delete('/:id', requireAuth, (req, res) => {
+router.delete('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   const db = getDB();
   const file = db.prepare('SELECT * FROM media_files WHERE id = ?').get(req.params.id);
   if (!file) return res.status(404).json({ error: 'File not found' });
@@ -95,11 +124,15 @@ router.delete('/:id', requireAuth, (req, res) => {
   }
 
   const isAudio = file.mime_type.startsWith('audio/');
-  const filePath = path.join(UPLOAD_DIR, isAudio ? 'audio' : 'images', file.filename);
+  const safeFilename = path.basename(file.filename || '');
+  if (!safeFilename || safeFilename !== file.filename) {
+    return res.status(400).json({ error: 'Invalid stored filename' });
+  }
+  const filePath = path.join(UPLOAD_DIR, isAudio ? 'audio' : 'images', safeFilename);
 
   try {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     db.prepare('DELETE FROM media_files WHERE id = ?').run(req.params.id);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete file' });

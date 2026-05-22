@@ -1,4 +1,7 @@
 const express = require('express');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
 const { requireAuth, requireRole, hashPassword } = require('./auth');
@@ -57,16 +60,27 @@ router.get('/student/announcements', (req, res) => {
   if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
   try {
     const db = getDB();
+    const { page, pageSize, offset } = getPagination(req, 50, 200);
     const announcements = db.prepare(`
       SELECT a.id, a.message, a.created_at, a.expires_at, c.name as class_name
       FROM announcements a
       JOIN classes c ON c.id = a.class_id
       JOIN class_students cs ON cs.class_id = a.class_id
-      WHERE cs.student_id = ?
+        WHERE cs.student_id = ?
         AND (a.expires_at IS NULL OR a.expires_at > datetime('now'))
       ORDER BY a.created_at DESC
-    `).all(req.user.userId);
-    res.json(announcements);
+      LIMIT ? OFFSET ?
+    `).all(req.user.userId, pageSize, offset);
+    if (!hasPaginationQuery(req)) return res.json(announcements);
+
+    const total = db.prepare(`
+      SELECT COUNT(*) as cnt
+      FROM announcements a
+      JOIN class_students cs ON cs.class_id = a.class_id
+      WHERE cs.student_id = ?
+        AND (a.expires_at IS NULL OR a.expires_at > datetime('now'))
+    `).get(req.user.userId).cnt || 0;
+    res.json({ data: announcements, pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -545,22 +559,23 @@ router.post('/import-pdf', requireAuth, requireRole('admin', 'teacher'), upload.
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
+  let tempPath = null;
   try {
     // Dynamic import for ES module pdf-parse or fallback to exec
     let text = '';
     try {
       const { PDFParse } = require('pdf-parse');
       const parser = new PDFParse({ data: req.file.buffer });
-      const data = await parser.getText();
-      await parser.destroy();
+      let data;
+      try {
+        data = await parser.getText();
+      } finally {
+        await parser.destroy();
+      }
       text = data.text;
     } catch (e) {
-      // Fallback if pdf-parse fails due to ES modules or other issues
-      const tempPath = require('path').join(__dirname, '..', 'temp_upload.pdf');
-      require('fs').writeFileSync(tempPath, req.file.buffer);
-      const { execSync } = require('child_process');
-      // Very hacky fallback just in case pdf-parse completely fails
-      // We assume pdf-parse works since we installed it
+      tempPath = path.join(os.tmpdir(), `learnflow-import-${uuidv4()}.pdf`);
+      fs.writeFileSync(tempPath, req.file.buffer);
       throw e;
     }
 
@@ -602,15 +617,7 @@ router.post('/import-pdf', requireAuth, requireRole('admin', 'teacher'), upload.
     }
 
     const db = require('../db/init').getDB();
-    const { v4: uuidv4 } = require('uuid');
-    
-    // Default password iteration and logic from auth.js
     const crypto = require('crypto');
-    function hashPassword(password) {
-      const salt = crypto.randomBytes(16).toString('hex');
-      const hash = crypto.pbkdf2Sync(password, salt, 310000, 64, 'sha512').toString('hex');
-      return `310000:${salt}:${hash}`;
-    }
     const defaultPasswordHash = hashPassword('changeme123');
     
     const results = { classesCreated: 0, studentsCreated: 0, classesExisting: 0, studentsExisting: 0 };
@@ -622,13 +629,21 @@ router.post('/import-pdf', requireAuth, requireRole('admin', 'teacher'), upload.
         
         if (!classRecord) {
           classId = uuidv4();
-          // generate a short 6-char code
-          const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+          let code = crypto.randomBytes(3).toString('hex').toUpperCase();
+          while (db.prepare('SELECT 1 FROM classes WHERE class_code = ?').get(code)) {
+            code = crypto.randomBytes(3).toString('hex').toUpperCase();
+          }
           db.prepare('INSERT INTO classes (id, name, class_code, created_by) VALUES (?, ?, ?, ?)')
             .run(classId, cls.name, code, req.user.userId);
           results.classesCreated++;
         } else {
           classId = classRecord.id;
+          const existingClass = db.prepare('SELECT id, created_by FROM classes WHERE id = ?').get(classId);
+          if (!canAccessClass(req, existingClass)) {
+            const error = new Error(`You do not have permission to import students into class "${cls.name}"`);
+            error.statusCode = 403;
+            throw error;
+          }
           results.classesExisting++;
         }
 
@@ -665,7 +680,11 @@ router.post('/import-pdf', requireAuth, requireRole('admin', 'teacher'), upload.
     res.json({ message: 'Import successful', results, data: classesData });
   } catch (err) {
     console.error('[CLASSES] PDF Import error:', err);
-    res.status(500).json({ error: 'Failed to process PDF file: ' + err.message });
+    res.status(err.statusCode || 500).json({ error: 'Failed to process PDF file: ' + err.message });
+  } finally {
+    if (tempPath && fs.existsSync(tempPath)) {
+      try { fs.unlinkSync(tempPath); } catch {}
+    }
   }
 });
 
