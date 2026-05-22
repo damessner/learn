@@ -323,6 +323,16 @@ router.post('/teacher/parent-digest/:studentId', (req, res) => {
   const db = getDB();
   const student = db.prepare(`SELECT id, name, email FROM users WHERE id = ? AND role = 'student'`).get(req.params.studentId);
   if (!student) return res.status(404).json({ error: 'Student not found' });
+  if (req.user.role !== 'admin') {
+    const hasAccess = db.prepare(`
+      SELECT 1
+      FROM class_students cs
+      JOIN classes c ON c.id = cs.class_id
+      WHERE cs.student_id = ? AND c.created_by = ?
+      LIMIT 1
+    `).get(student.id, req.user.userId);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+  }
 
   const summary = db.prepare(`
     SELECT
@@ -354,6 +364,16 @@ router.post('/teacher/parent-digest/:studentId', (req, res) => {
 
 router.get('/teacher/parent-digest/:studentId/latest', (req, res) => {
   const db = getDB();
+  if (req.user.role !== 'admin') {
+    const hasAccess = db.prepare(`
+      SELECT 1
+      FROM class_students cs
+      JOIN classes c ON c.id = cs.class_id
+      WHERE cs.student_id = ? AND c.created_by = ?
+      LIMIT 1
+    `).get(req.params.studentId, req.user.userId);
+    if (!hasAccess) return res.status(403).json({ error: 'Access denied' });
+  }
   const row = db.prepare(`
     SELECT * FROM parent_digests
     WHERE student_id = ?

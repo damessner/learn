@@ -315,8 +315,46 @@ router.patch('/users/:id/role', requireAuth, requireRole('admin'), (req, res) =>
 // ─── List all users (admin/teacher only) ──────────────────────────────────────────────
 router.get('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) => {
   const db = getDB();
-  const users = db.prepare('SELECT id, name, email, username, role, created_at, last_login FROM users ORDER BY name').all();
-  res.json(users);
+  const { page, pageSize, offset } = getPagination(req, 200, 1000);
+  const search = req.query.search ? String(req.query.search).trim().toLowerCase() : '';
+  const roleFilter = req.query.role ? String(req.query.role).trim().toLowerCase() : '';
+  const validRole = ['student', 'teacher', 'admin'].includes(roleFilter) ? roleFilter : null;
+  const hasSearch = search.length > 0;
+  if (req.user.role !== 'admin' && validRole && validRole !== 'student') {
+    return res.status(403).json({ error: 'Teachers can only list student accounts' });
+  }
+
+  const whereParts = [];
+  const params = [];
+  if (validRole) {
+    whereParts.push('role = ?');
+    params.push(validRole);
+  }
+  if (hasSearch) {
+    whereParts.push('(LOWER(name) LIKE ? OR LOWER(email) LIKE ? OR LOWER(username) LIKE ?)');
+    const like = `%${search}%`;
+    params.push(like, like, like);
+  }
+  if (req.user.role !== 'admin') {
+    whereParts.push("role = 'student'");
+  }
+  const whereClause = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
+
+  const users = db.prepare(`
+    SELECT id, name, email, username, role, created_at, last_login
+    FROM users
+    ${whereClause}
+    ORDER BY name
+    LIMIT ? OFFSET ?
+  `).all(...params, pageSize, offset);
+  if (!hasPaginationQuery(req)) return res.json(users);
+
+  const total = db.prepare(`
+    SELECT COUNT(*) as cnt
+    FROM users
+    ${whereClause}
+  `).get(...params).cnt || 0;
+  res.json({ data: users, pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } });
 });
 
 // ─── Create User (admin/teacher only) ──────────────────────────────────────────
@@ -646,6 +684,21 @@ function requireRole(...roles) {
     }
     next();
   };
+}
+
+function getPagination(req, defaultPageSize = 100, maxPageSize = 500) {
+  const pageRaw = Number(req.query.page);
+  const pageSizeRaw = Number(req.query.pageSize);
+  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+    ? Math.min(Math.floor(pageSizeRaw), maxPageSize)
+    : defaultPageSize;
+  const offset = (page - 1) * pageSize;
+  return { page, pageSize, offset };
+}
+
+function hasPaginationQuery(req) {
+  return req.query.page !== undefined || req.query.pageSize !== undefined;
 }
 
 module.exports = router;

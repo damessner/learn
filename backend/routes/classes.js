@@ -74,11 +74,33 @@ router.get('/student/announcements', (req, res) => {
 
 router.use(requireRole('teacher', 'admin'));
 
+function canAccessClass(req, classRow) {
+  if (!classRow) return false;
+  return req.user.role === 'admin' || classRow.created_by === req.user.userId;
+}
+
+function getPagination(req, defaultPageSize = 100, maxPageSize = 500) {
+  const pageRaw = Number(req.query.page);
+  const pageSizeRaw = Number(req.query.pageSize);
+  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+  const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+    ? Math.min(Math.floor(pageSizeRaw), maxPageSize)
+    : defaultPageSize;
+  const offset = (page - 1) * pageSize;
+  return { page, pageSize, offset };
+}
+
+function hasPaginationQuery(req) {
+  return req.query.page !== undefined || req.query.pageSize !== undefined;
+}
+
 // ─── List Classes ─────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   try {
     const db = getDB();
+    const { page, pageSize, offset } = getPagination(req);
     let classes;
+    let total;
     if (req.user.role === 'admin') {
       classes = db.prepare(`
         SELECT c.*, COUNT(cs.student_id) as student_count, u.name as teacher_name
@@ -87,7 +109,9 @@ router.get('/', (req, res) => {
         LEFT JOIN users u ON u.id = c.created_by
         GROUP BY c.id
         ORDER BY c.name ASC
-      `).all();
+        LIMIT ? OFFSET ?
+      `).all(pageSize, offset);
+      total = db.prepare('SELECT COUNT(*) as cnt FROM classes').get().cnt || 0;
     } else {
       classes = db.prepare(`
         SELECT c.*, COUNT(cs.student_id) as student_count
@@ -96,9 +120,12 @@ router.get('/', (req, res) => {
         WHERE c.created_by = ?
         GROUP BY c.id
         ORDER BY c.name ASC
-      `).all(req.user.userId);
+        LIMIT ? OFFSET ?
+      `).all(req.user.userId, pageSize, offset);
+      total = db.prepare('SELECT COUNT(*) as cnt FROM classes WHERE created_by = ?').get(req.user.userId).cnt || 0;
     }
-    res.json(classes);
+    if (!hasPaginationQuery(req)) return res.json(classes);
+    res.json({ data: classes, pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -144,11 +171,24 @@ router.delete('/:id', (req, res) => {
     // Verify ownership
     const cls = db.prepare('SELECT * FROM classes WHERE id = ?').get(req.params.id);
     if (!cls) return res.status(404).json({ error: 'Class not found' });
-    if (cls.created_by !== req.user.userId && req.user.role !== 'admin') {
+    if (!canAccessClass(req, cls)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    db.prepare('DELETE FROM classes WHERE id = ?').run(req.params.id);
+    db.transaction(() => {
+      const assignmentIds = db.prepare('SELECT id FROM assignments WHERE class_id = ?').all(req.params.id).map(r => r.id);
+      if (assignmentIds.length > 0) {
+        const placeholders = assignmentIds.map(() => '?').join(',');
+        db.prepare(`DELETE FROM peer_reviews WHERE assignment_id IN (${placeholders})`).run(...assignmentIds);
+        db.prepare(`DELETE FROM submission_attempts WHERE assignment_id IN (${placeholders})`).run(...assignmentIds);
+        db.prepare(`DELETE FROM submissions WHERE assignment_id IN (${placeholders})`).run(...assignmentIds);
+        db.prepare(`DELETE FROM assignments WHERE id IN (${placeholders})`).run(...assignmentIds);
+      }
+      db.prepare('DELETE FROM announcements WHERE class_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM class_students WHERE class_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM course_assignments WHERE class_id = ?').run(req.params.id);
+      db.prepare('DELETE FROM classes WHERE id = ?').run(req.params.id);
+    })();
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -159,6 +199,9 @@ router.delete('/:id', (req, res) => {
 router.get('/:id/students', (req, res) => {
   try {
     const db = getDB();
+    const cls = db.prepare('SELECT id, created_by FROM classes WHERE id = ?').get(req.params.id);
+    if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
     const students = db.prepare(`
       SELECT u.id, u.name, u.email, u.last_login
       FROM users u
@@ -181,6 +224,9 @@ router.post('/:id/students', (req, res) => {
 
   try {
     const db = getDB();
+    const cls = db.prepare('SELECT id, created_by FROM classes WHERE id = ?').get(req.params.id);
+    if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
     const insert = db.prepare(`
       INSERT OR IGNORE INTO class_students (class_id, student_id)
       VALUES (?, ?)
@@ -203,6 +249,9 @@ router.post('/:id/students', (req, res) => {
 router.delete('/:id/students/:studentId', (req, res) => {
   try {
     const db = getDB();
+    const cls = db.prepare('SELECT id, created_by FROM classes WHERE id = ?').get(req.params.id);
+    if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
     db.prepare(`
       DELETE FROM class_students
       WHERE class_id = ? AND student_id = ?
@@ -217,13 +266,17 @@ router.delete('/:id/students/:studentId', (req, res) => {
 router.get('/students/all', (req, res) => {
   try {
     const db = getDB();
+    const { page, pageSize, offset } = getPagination(req, 200, 1000);
     const students = db.prepare(`
       SELECT id, name, email, last_login
       FROM users
       WHERE role = 'student'
       ORDER BY name ASC
-    `).all();
-    res.json(students);
+      LIMIT ? OFFSET ?
+    `).all(pageSize, offset);
+    const total = db.prepare("SELECT COUNT(*) as cnt FROM users WHERE role = 'student'").get().cnt || 0;
+    if (!hasPaginationQuery(req)) return res.json(students);
+    res.json({ data: students, pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -237,6 +290,7 @@ router.get('/:id/progress', (req, res) => {
     // 1. Get class details
     const cls = db.prepare('SELECT * FROM classes WHERE id = ?').get(req.params.id);
     if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
 
     // 2. Get all students in the class
     const students = db.prepare(`
@@ -264,13 +318,16 @@ router.get('/:id/progress', (req, res) => {
         SELECT id FROM assignments WHERE class_id = ?
       )
     `).all(req.params.id);
+    const submissionMap = new Map(
+      submissions.map(s => [`${s.assignment_id}::${s.user_id}`, s])
+    );
 
     // Build the matrix
     const matrix = students.map(student => {
       const studentSubmissions = {};
       
       assignments.forEach(assign => {
-        const sub = submissions.find(s => s.assignment_id === assign.assignment_id && s.user_id === student.id);
+        const sub = submissionMap.get(`${assign.assignment_id}::${student.id}`);
         studentSubmissions[assign.assignment_id] = sub ? {
           submission_id: sub.submission_id,
           score: sub.score,
@@ -323,6 +380,9 @@ router.post('/students/manual', (req, res) => {
     const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email.trim().toLowerCase());
     if (existing) {
       if (class_id) {
+        const cls = db.prepare('SELECT id, created_by FROM classes WHERE id = ?').get(class_id);
+        if (!cls) return res.status(404).json({ error: 'Class not found' });
+        if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
         const inClass = db.prepare('SELECT * FROM class_students WHERE class_id = ? AND student_id = ?').get(class_id, existing.id);
         if (inClass) {
           return res.status(400).json({ error: 'A student with this email is already registered and enrolled in this class.' });
@@ -349,6 +409,9 @@ router.post('/students/manual', (req, res) => {
     `).run(userId, userUsername, passHash, name.trim(), email.trim().toLowerCase(), userRole);
 
     if (userRole === 'student' && class_id) {
+      const cls = db.prepare('SELECT id, created_by FROM classes WHERE id = ?').get(class_id);
+      if (!cls) return res.status(404).json({ error: 'Class not found' });
+      if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
       db.prepare(`
         INSERT INTO class_students (class_id, student_id)
         VALUES (?, ?)
@@ -366,8 +429,9 @@ router.post('/students/manual', (req, res) => {
 router.get('/:id/announcements', (req, res) => {
   try {
     const db = getDB();
-    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ?').get(req.params.id);
     if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
     const announcements = db.prepare(`
       SELECT a.*, u.name as author_name FROM announcements a
       LEFT JOIN users u ON u.id = a.created_by
@@ -384,8 +448,9 @@ router.post('/:id/announcements', (req, res) => {
   if (!message || !message.trim()) return res.status(400).json({ error: 'message is required' });
   try {
     const db = getDB();
-    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ?').get(req.params.id);
     if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
     const id = uuidv4();
     db.prepare('INSERT INTO announcements (id, class_id, created_by, message, expires_at) VALUES (?, ?, ?, ?, ?)').run(id, req.params.id, req.user.userId, message.trim(), expires_at || null);
     res.status(201).json(db.prepare('SELECT * FROM announcements WHERE id = ?').get(id));
@@ -397,8 +462,9 @@ router.post('/:id/announcements', (req, res) => {
 router.delete('/:id/announcements/:announcementId', (req, res) => {
   try {
     const db = getDB();
-    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ?').get(req.params.id);
     if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
     db.prepare('DELETE FROM announcements WHERE id = ? AND class_id = ?').run(req.params.announcementId, req.params.id);
     res.json({ success: true });
   } catch (err) {
@@ -410,8 +476,9 @@ router.delete('/:id/announcements/:announcementId', (req, res) => {
 router.get('/:id/export-csv', (req, res) => {
   try {
     const db = getDB();
-    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ?').get(req.params.id);
     if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
 
     const students = db.prepare(`
       SELECT u.name, u.email, u.username,
@@ -443,8 +510,9 @@ router.get('/:id/export-csv', (req, res) => {
 router.get('/:id/stats', (req, res) => {
   try {
     const db = getDB();
-    const cls = db.prepare('SELECT * FROM classes WHERE id = ? AND created_by = ?').get(req.params.id, req.user.userId);
+    const cls = db.prepare('SELECT * FROM classes WHERE id = ?').get(req.params.id);
     if (!cls) return res.status(404).json({ error: 'Class not found' });
+    if (!canAccessClass(req, cls)) return res.status(403).json({ error: 'Unauthorized' });
 
     const totalStudents = db.prepare('SELECT COUNT(*) as cnt FROM class_students WHERE class_id = ?').get(req.params.id).cnt;
     const assignments = db.prepare('SELECT COUNT(*) as cnt FROM assignments WHERE class_id = ?').get(req.params.id).cnt;

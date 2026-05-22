@@ -55,7 +55,7 @@ async function initDB() {
       description TEXT DEFAULT '',
       subject TEXT DEFAULT '',
       grade_level TEXT DEFAULT '',
-      created_by TEXT NOT NULL REFERENCES users(id),
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
       content TEXT NOT NULL DEFAULT '{"blocks":[]}',
       total_points INTEGER DEFAULT 0,
       is_published INTEGER DEFAULT 0,
@@ -66,20 +66,20 @@ async function initDB() {
     -- Assignments (worksheets assigned to classes)
     CREATE TABLE IF NOT EXISTS assignments (
       id TEXT PRIMARY KEY,
-      worksheet_id TEXT NOT NULL REFERENCES worksheets(id),
+      worksheet_id TEXT NOT NULL REFERENCES worksheets(id) ON DELETE CASCADE,
       class_name TEXT NOT NULL,
-      class_id TEXT,
+      class_id TEXT REFERENCES classes(id) ON DELETE CASCADE,
       teams_assignment_id TEXT,
       due_date TEXT,
-      created_by TEXT NOT NULL REFERENCES users(id),
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
     -- Student submissions
     CREATE TABLE IF NOT EXISTS submissions (
       id TEXT PRIMARY KEY,
-      assignment_id TEXT NOT NULL REFERENCES assignments(id),
-      user_id TEXT NOT NULL REFERENCES users(id),
+      assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       answers TEXT NOT NULL DEFAULT '{}',
       score INTEGER,
       max_score INTEGER,
@@ -110,7 +110,7 @@ async function initDB() {
       original_name TEXT NOT NULL,
       mime_type TEXT NOT NULL,
       size_bytes INTEGER,
-      uploaded_by TEXT REFERENCES users(id),
+      uploaded_by TEXT REFERENCES users(id) ON DELETE SET NULL,
       url TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -119,7 +119,7 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS classes (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      created_by TEXT NOT NULL REFERENCES users(id),
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -141,7 +141,7 @@ async function initDB() {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT DEFAULT '',
-      created_by TEXT NOT NULL REFERENCES users(id),
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -156,10 +156,10 @@ async function initDB() {
     -- Course Assignments (courses assigned to classes)
     CREATE TABLE IF NOT EXISTS course_assignments (
       id TEXT PRIMARY KEY,
-      course_id TEXT NOT NULL REFERENCES courses(id),
-      class_id TEXT NOT NULL REFERENCES classes(id),
+      course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+      class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
       due_date TEXT,
-      created_by TEXT NOT NULL REFERENCES users(id),
+      created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
