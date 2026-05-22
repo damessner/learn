@@ -265,7 +265,12 @@ function scoreAnswers(blocks, answers) {
         }
         const earned = Math.round((dragScore / Math.max(totalTargets, 1)) * blockPoints);
         score += earned;
-        feedback[block.id] = { correct: dragScore === totalTargets, score: earned, maxScore: blockPoints };
+        feedback[block.id] = {
+          correct: dragScore === totalTargets,
+          score: earned,
+          maxScore: blockPoints,
+          correctAnswers: correct
+        };
         break;
       }
 
@@ -279,7 +284,12 @@ function scoreAnswers(blocks, answers) {
         }
         const earned = Math.round((matchScore / Math.max(correctPairs.length, 1)) * blockPoints);
         score += earned;
-        feedback[block.id] = { correct: matchScore === correctPairs.length, score: earned, maxScore: blockPoints };
+        feedback[block.id] = {
+          correct: matchScore === correctPairs.length,
+          score: earned,
+          maxScore: blockPoints,
+          correctAnswers: correctPairs
+        };
         break;
       }
 
@@ -315,7 +325,16 @@ function scoreAnswers(blocks, answers) {
         });
         const earned = Math.round((scrambleScore / Math.max(words.length, 1)) * blockPoints);
         score += earned;
-        feedback[block.id] = { correct: scrambleScore === words.length, score: earned, maxScore: blockPoints };
+        const scrambleCorrect = {};
+        words.forEach((item, idx) => {
+          scrambleCorrect[idx] = item.word;
+        });
+        feedback[block.id] = {
+          correct: scrambleScore === words.length,
+          score: earned,
+          maxScore: blockPoints,
+          correctAnswers: scrambleCorrect
+        };
         break;
       }
 
@@ -356,7 +375,18 @@ function scoreAnswers(blocks, answers) {
         
         const earned = Math.round((dialogueScore / Math.max(gapCount, 1)) * blockPoints);
         score += earned;
-        feedback[block.id] = { correct: dialogueScore === gapCount, score: earned, maxScore: blockPoints };
+        const dialogueCorrect = {};
+        messages.forEach((msg, idx) => {
+          if (msg.isGap) {
+            dialogueCorrect[idx] = msg.answer;
+          }
+        });
+        feedback[block.id] = {
+          correct: dialogueScore === gapCount,
+          score: earned,
+          maxScore: blockPoints,
+          correctAnswers: dialogueCorrect
+        };
         break;
       }
 

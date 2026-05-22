@@ -207,12 +207,13 @@ const triggerRedraw = () => {
 
 // Check grading for nodes
 const isLeftCorrect = (leftIdx) => {
-  if (!props.feedback || !props.pairs) return false
+  const pairs = feedbackPairs.value
+  if (!props.feedback || !pairs) return false
   const leftText = props.left[leftIdx]
   const rightText = props.right[answers.value[String(leftIdx)]]
   if (!leftText || !rightText) return false
   
-  return props.pairs.some(p => p[0] === leftText && p[1] === rightText)
+  return pairs.some(p => p[0] === leftText && p[1] === rightText)
 }
 
 const isRightCorrect = (rightIdx) => {

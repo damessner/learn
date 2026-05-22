@@ -469,17 +469,17 @@
       <div v-else class="templates-overview">
         <div class="section-actions-header">
           <h2>Templates Library 📚</h2>
-          <p class="subtitle">Select a subject to browse high-quality pre-made worksheets. You can edit worksheets after cloning.</p>
+          <p class="subtitle">Browse high-quality pre-made worksheets sorted by subject. You can edit worksheets after cloning.</p>
         </div>
 
-        <!-- Subject tabs selector -->
+        <!-- Subject tabs selector (Acts as smooth scroll anchors) -->
         <div class="subject-tabs-wrapper">
           <div class="subject-row">
             <button 
               v-for="sub in ['Englisch', 'Mathematik', 'Deutsch']" 
               :key="sub" 
-              @click="selectedTemplateSubject = sub"
-              :class="['subject-tab-btn', { active: selectedTemplateSubject === sub }]"
+              @click="scrollToSubject(sub)"
+              :class="['subject-tab-btn', { active: activeTemplateSubject === sub }]"
             >
               <span class="subject-icon">{{ getSubjectIcon(sub) }}</span>
               <span class="subject-name">{{ sub }}</span>
@@ -489,8 +489,8 @@
             <button 
               v-for="sub in ['Geographie', 'Biologie', 'Chemie', 'Physik']" 
               :key="sub" 
-              @click="selectedTemplateSubject = sub"
-              :class="['subject-tab-btn', { active: selectedTemplateSubject === sub }]"
+              @click="scrollToSubject(sub)"
+              :class="['subject-tab-btn', { active: activeTemplateSubject === sub }]"
             >
               <span class="subject-icon">{{ getSubjectIcon(sub) }}</span>
               <span class="subject-name">{{ sub }}</span>
@@ -498,24 +498,40 @@
           </div>
         </div>
 
-        <div v-if="filteredTemplates.length === 0" class="empty-state card glass">
-          <div class="empty-icon">📝</div>
-          <h3>No Templates Found</h3>
-          <p>No templates have been created for "{{ selectedTemplateSubject }}" yet.</p>
-        </div>
+        <!-- Grouped Subject Sections -->
+        <div 
+          v-for="sub in templateSubjects" 
+          :key="sub" 
+          :id="`subject-section-${sub.toLowerCase()}`" 
+          class="subject-section"
+        >
+          <div class="subject-section-header">
+            <span class="subject-section-icon">{{ getSubjectIcon(sub) }}</span>
+            <h3 class="subject-section-title">{{ sub }}</h3>
+            <span class="subject-section-count">
+              {{ getTemplatesBySubject(sub).length }} {{ getTemplatesBySubject(sub).length === 1 ? 'template' : 'templates' }}
+            </span>
+          </div>
 
-        <div v-else class="templates-grid">
-          <div v-for="tpl in filteredTemplates" :key="tpl.id" class="template-card card glass">
-            <div class="template-tag">{{ tpl.subject || 'Allgemein' }}</div>
-            <h3>{{ tpl.title }}</h3>
-            <p class="template-desc">{{ tpl.description }}</p>
-            <div class="template-meta">
-              <span class="meta-item">🎯 {{ tpl.grade_level }}</span>
-              <span class="meta-item">✏️ {{ tpl.content?.blocks?.length ?? 0 }} exercises</span>
+          <div v-if="getTemplatesBySubject(sub).length === 0" class="empty-state card glass" style="margin-top: 16px;">
+            <div class="empty-icon">📝</div>
+            <h3>No Templates Found</h3>
+            <p>No templates have been created for "{{ sub }}" yet.</p>
+          </div>
+
+          <div v-else class="templates-grid">
+            <div v-for="tpl in getTemplatesBySubject(sub)" :key="tpl.id" class="template-card card glass">
+              <div class="template-tag">{{ tpl.subject || 'Allgemein' }}</div>
+              <h3>{{ tpl.title }}</h3>
+              <p class="template-desc">{{ tpl.description }}</p>
+              <div class="template-meta">
+                <span class="meta-item">🎯 {{ tpl.grade_level }}</span>
+                <span class="meta-item">✏️ {{ tpl.content?.blocks?.length ?? 0 }} exercises</span>
+              </div>
+              <button @click="useTemplate(tpl.id)" class="btn btn-primary btn-block btn-template-action">
+                ⚡ Clone Worksheet
+              </button>
             </div>
-            <button @click="useTemplate(tpl.id)" class="btn btn-primary btn-block btn-template-action">
-              ⚡ Clone Worksheet
-            </button>
           </div>
         </div>
       </div>
@@ -1254,11 +1270,19 @@ const newStudentForm = ref({ name: '', email: '', role: 'student' })
 // Templates state
 const templates = ref([])
 const templateSubjects = ['Englisch', 'Mathematik', 'Deutsch', 'Geographie', 'Biologie', 'Chemie', 'Physik']
-const selectedTemplateSubject = ref('Englisch')
+const activeTemplateSubject = ref('Englisch')
 
-const filteredTemplates = computed(() => {
-  return templates.value.filter(tpl => tpl.subject === selectedTemplateSubject.value)
-})
+const getTemplatesBySubject = (subject) => {
+  return templates.value.filter(tpl => tpl.subject === subject)
+}
+
+const scrollToSubject = (sub) => {
+  activeTemplateSubject.value = sub
+  const element = document.getElementById(`subject-section-${sub.toLowerCase()}`)
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+}
 
 const getSubjectIcon = (subject) => {
   const icons = {
@@ -2631,6 +2655,48 @@ const importCSVStudents = async () => {
 
 .subject-icon {
   font-size: 18px;
+}
+
+/* Subject Section Styling */
+.subject-section {
+  margin-top: 48px;
+  scroll-margin-top: 90px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.subject-section:first-of-type {
+  margin-top: 24px;
+}
+
+.subject-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 24px;
+}
+
+.subject-section-icon {
+  font-size: 24px;
+}
+
+.subject-section-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.subject-section-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--primary-light);
+  border: 1px solid var(--border-color);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  margin-left: auto;
 }
 
 .templates-grid {
