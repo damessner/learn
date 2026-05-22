@@ -144,13 +144,15 @@ const fetchWorksheet = async () => {
 const initAnswers = () => {
   const initialAnswers = {}
   worksheet.value.content.blocks.forEach(block => {
-    if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary'].includes(block.type)) {
+    if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary', 'video'].includes(block.type)) {
       if (block.type === 'multiple_choice') {
         initialAnswers[block.id] = []
       } else if (['drag_drop', 'matching'].includes(block.type)) {
         initialAnswers[block.id] = {}
       } else if (block.type === 'vocabulary') {
         initialAnswers[block.id] = { completed: false, answersMap: {} }
+      } else if (block.type === 'video') {
+        initialAnswers[block.id] = []
       } else if (block.type === 'gap_fill') {
         initialAnswers[block.id] = []
       } else {
@@ -172,7 +174,7 @@ const submitPreview = () => {
   const feedback = {}
 
   worksheet.value.content.blocks.forEach(block => {
-    if (!['gap_fill', 'drag_drop', 'multiple_choice', 'single_choice', 'matching', 'vocabulary'].includes(block.type)) return
+    if (!['gap_fill', 'drag_drop', 'multiple_choice', 'single_choice', 'matching', 'vocabulary', 'video'].includes(block.type)) return
 
     const pts = block.points || 1
     totalMaxScore += pts
@@ -267,6 +269,37 @@ const submitPreview = () => {
         blockScore = Math.round((correctCount / totalPairs) * pts)
         isCorrect = correctCount === totalPairs
       }
+    } else if (block.type === 'video') {
+      const questions = Array.isArray(block.questions) ? block.questions : []
+      const answerList = Array.isArray(studentAns) ? studentAns : []
+      let correctCount = 0
+      const questionFeedback = []
+      questions.forEach((q, idx) => {
+        const type = q.type || 'short_answer'
+        const answer = answerList[idx]
+        let qCorrect = false
+        if (type === 'single_choice') {
+          qCorrect = Number(answer) === Number(q.correct)
+        } else if (type === 'multiple_choice') {
+          const expected = Array.isArray(q.correct) ? [...q.correct].sort().join(',') : ''
+          const got = Array.isArray(answer) ? [...answer].sort().join(',') : ''
+          qCorrect = expected === got
+        } else if (type === 'gap_fill') {
+          const expected = [...String(q.template || '').matchAll(/\(\(([^)]+)\)\)/g)].map(m => (m[1] || '').trim().toLowerCase())
+          const got = Array.isArray(answer) ? answer.map(v => String(v || '').trim().toLowerCase()) : []
+          qCorrect = expected.length > 0 && expected.every((val, i) => got[i] === val)
+        } else {
+          const sample = String(q.sample_answer || '').trim().toLowerCase()
+          const got = String(answer || '').trim().toLowerCase()
+          qCorrect = sample ? got === sample : got.length > 0
+        }
+        if (qCorrect) correctCount++
+        questionFeedback.push({ correct: qCorrect })
+      })
+      const total = Math.max(questions.length, 1)
+      blockScore = Math.round((correctCount / total) * pts)
+      isCorrect = questions.length > 0 && correctCount === questions.length
+      blockFeedback.questions = questionFeedback
     }
 
     blockFeedback.correct = isCorrect

@@ -55,12 +55,33 @@ router.get('/assignment/:assignmentId', requireAuth, (req, res) => {
 
   if (!submission) return res.json(null);
   const attempts = db.prepare(`
-    SELECT attempt_no, score, max_score, submitted_at
+    SELECT attempt_no, score, max_score, submitted_at, feedback_json
     FROM submission_attempts
     WHERE assignment_id = ? AND user_id = ?
     ORDER BY attempt_no DESC
-  `).all(req.params.assignmentId, req.user.userId);
-  res.json({ ...submission, answers: parseJson(submission.answers, {}), attempts });
+  `).all(req.params.assignmentId, req.user.userId).map(row => ({
+    ...row,
+    feedback: parseJson(row.feedback_json, {})
+  }));
+  const retryPolicy = assignment.retry_policy || 'single';
+  const maxAttempts = Math.max(1, Number(assignment.max_attempts) || 1);
+  const latestAttempt = attempts[0] || null;
+  const attemptsRemaining = retryPolicy === 'single'
+    ? 0
+    : retryPolicy === 'capped'
+      ? Math.max(0, maxAttempts - attempts.length)
+      : retryPolicy === 'incorrect_half'
+        ? Math.max(0, 2 - attempts.length)
+        : null;
+  res.json({
+    ...submission,
+    answers: parseJson(submission.answers, {}),
+    attempts,
+    retryPolicy,
+    maxAttempts,
+    attemptsRemaining,
+    latestAttempt
+  });
 });
 
 // ─── Save progress (auto-save, not final) ─────────────────────────────────────
@@ -145,6 +166,11 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
         error.statusCode = 409;
         throw error;
       }
+      if (retryPolicy === 'incorrect_half' && attemptsSoFar >= 2) {
+        const error = new Error('Incorrect-only retry allows at most 2 attempts.');
+        error.statusCode = 409;
+        throw error;
+      }
 
       const attemptNo = attemptsSoFar + 1;
       const submissionId = existing ? existing.id : uuidv4();
@@ -167,6 +193,12 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
             finalMaxScore = existing.max_score;
             finalAnswers = parseJson(existing.answers, {});
           }
+        } else if (retryPolicy === 'incorrect_half') {
+          const previousScore = Number(existing.score) || 0;
+          const improvement = Math.max(0, score - previousScore);
+          finalScore = previousScore + Math.round(improvement / 2);
+          finalMaxScore = maxScore;
+          finalAnswers = answers;
         }
         db.prepare(`
           UPDATE submissions SET
@@ -187,7 +219,13 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
         feedback,
         attemptNo,
         retryPolicy,
-        attemptsRemaining: retryPolicy === 'single' ? 0 : retryPolicy === 'capped' ? Math.max(0, maxAttempts - attemptNo) : null
+        attemptsRemaining: retryPolicy === 'single'
+          ? 0
+          : retryPolicy === 'capped'
+            ? Math.max(0, maxAttempts - attemptNo)
+            : retryPolicy === 'incorrect_half'
+              ? Math.max(0, 2 - attemptNo)
+              : null
       };
     })();
 
@@ -420,6 +458,40 @@ function scoreAnswers(blocks, answers) {
         break;
       }
 
+      case 'video': {
+        const questions = Array.isArray(block.questions) ? block.questions : [];
+        const studentAnswers = Array.isArray(studentAnswer) ? studentAnswer : [];
+        if (questions.length === 0) break;
+        let questionScore = 0;
+        const questionFeedback = [];
+        const totalQuestionPoints = questions.reduce((sum, q) => sum + (Number(q?.points) || 1), 0);
+        const fallbackQuestionPoints = Math.max(Number(blockPoints) || 0, totalQuestionPoints);
+        const pointsDivisor = totalQuestionPoints > 0 ? totalQuestionPoints : questions.length;
+
+        questions.forEach((question, idx) => {
+          const evaluation = scoreVideoQuestion(question, studentAnswers[idx]);
+          const questionWeight = Number(question?.points) || 1;
+          const weighted = pointsDivisor > 0 ? (evaluation.scoreRatio * questionWeight / pointsDivisor) * fallbackQuestionPoints : 0;
+          const earned = Math.round(Math.max(0, Math.min(fallbackQuestionPoints, weighted)));
+          questionScore += earned;
+          questionFeedback.push({
+            ...evaluation,
+            score: earned,
+            maxScore: Math.round((questionWeight / Math.max(pointsDivisor, 1)) * fallbackQuestionPoints)
+          });
+        });
+
+        const earned = Math.min(fallbackQuestionPoints, questionScore);
+        score += earned;
+        feedback[block.id] = {
+          correct: questionFeedback.every(item => item.correct),
+          score: earned,
+          maxScore: fallbackQuestionPoints,
+          questions: questionFeedback
+        };
+        break;
+      }
+
       case 'short_answer': {
         const sampleAnswer = (block.sample_answer || '').toLowerCase().trim();
         const studentText = String(studentAnswer || '').trim();
@@ -455,6 +527,79 @@ function setsEqual(a, b) {
   if (a.size !== b.size) return false;
   for (const item of a) if (!b.has(item)) return false;
   return true;
+}
+
+function extractGapFillAnswers(template) {
+  const answers = [];
+  if (!template) return answers;
+  const regex = /\(\(([^)]+)\)\)/g;
+  let match;
+  while ((match = regex.exec(template)) !== null) {
+    answers.push((match[1] || '').trim());
+  }
+  return answers;
+}
+
+function scoreVideoQuestion(question, studentAnswer) {
+  const type = question?.type || 'short_answer';
+  if (type === 'single_choice') {
+    const isCorrect = Number(studentAnswer) === Number(question?.correct);
+    return {
+      type,
+      correct: isCorrect,
+      scoreRatio: isCorrect ? 1 : 0,
+      correctAnswer: question?.correct
+    };
+  }
+
+  if (type === 'multiple_choice') {
+    const correct = new Set(Array.isArray(question?.correct) ? question.correct : []);
+    const student = new Set(Array.isArray(studentAnswer) ? studentAnswer : []);
+    const isCorrect = setsEqual(correct, student);
+    return {
+      type,
+      correct: isCorrect,
+      scoreRatio: isCorrect ? 1 : 0,
+      correctAnswers: Array.from(correct)
+    };
+  }
+
+  if (type === 'gap_fill') {
+    const expected = extractGapFillAnswers(question?.template);
+    const values = Array.isArray(studentAnswer) ? studentAnswer : [];
+    let correctCount = 0;
+    expected.forEach((answer, idx) => {
+      const studentValue = String(values[idx] || '').trim().toLowerCase();
+      const expectedValue = String(answer || '').trim().toLowerCase();
+      if (studentValue === expectedValue || isAcceptableVariant(studentValue, expectedValue)) correctCount++;
+    });
+    const total = Math.max(expected.length, 1);
+    return {
+      type,
+      correct: correctCount === expected.length,
+      scoreRatio: correctCount / total,
+      correctAnswers: expected
+    };
+  }
+
+  const sample = String(question?.sample_answer || '').trim();
+  const studentText = String(studentAnswer || '').trim();
+  if (!sample) {
+    return {
+      type: 'short_answer',
+      correct: studentText.length > 0,
+      scoreRatio: studentText.length > 0 ? 1 : 0
+    };
+  }
+  const normalizedStudent = studentText.toLowerCase();
+  const normalizedSample = sample.toLowerCase();
+  const isCorrect = normalizedStudent === normalizedSample || isAcceptableVariant(normalizedStudent, normalizedSample);
+  return {
+    type: 'short_answer',
+    correct: isCorrect,
+    scoreRatio: isCorrect ? 1 : 0,
+    sampleAnswer: sample
+  };
 }
 
 function checkSTEMMatch(student, correct) {
