@@ -8,7 +8,7 @@
       <div style="display: flex; align-items: center; gap: 12px;">
         <button
           v-if="currentUser?.role === 'admin'"
-          @click="async () => { await fetchAdminSettings(); await fetchAdminUsers(); showAdminConsole = true; }"
+          @click="async () => { await fetchAdminSettings();    await fetchAdminUsers(); await fetchTeacherToken(); showAdminConsole = true; }"
           class="btn btn-secondary"
           title="Administrator Console"
           style="padding: 8px 14px; font-size: 1.1rem;"
@@ -294,9 +294,15 @@
       <div v-else-if="!selectedClassId" class="classes-overview-section">
         <div class="section-actions-header">
           <h2>Classes & Groups</h2>
-          <button @click="showCreateClassModal = true" class="btn btn-primary">
-            <span>＋</span> Create Class
-          </button>
+          <div style="display: flex; gap: 8px;">
+            <button @click="triggerPdfUpload" class="btn btn-secondary">
+              <span>📄</span> Import PDF List
+            </button>
+            <input type="file" ref="pdfInput" @change="handlePdfUpload" accept="application/pdf" style="display: none;" />
+            <button @click="showCreateClassModal = true" class="btn btn-primary">
+              <span>＋</span> Create Class
+            </button>
+          </div>
         </div>
 
         <div v-if="classes.length === 0" class="empty-state card glass">
@@ -492,6 +498,19 @@
         </div>
         <div class="settings-overview" style="max-height: 80vh; overflow-y: auto; padding: 8px 0;">
           <div class="settings-grid">
+            
+            <!-- Teacher Registration Link Card -->
+            <div class="settings-card card glass" style="margin-bottom: 24px;">
+              <h3>Teacher Self-Registration</h3>
+              <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">
+                Share this link with educators to allow them to create their own accounts.
+              </p>
+              <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <input type="text" readonly :value="teacherRegistrationUrl" style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
+                <button @click="copyTeacherLink" class="btn btn-secondary">Copy</button>
+              </div>
+              <button @click="generateNewTeacherToken" class="btn btn-danger btn-sm">Regenerate Link (Revokes old link)</button>
+            </div>
             <!-- Auth Configuration Card -->
             <div class="settings-card card glass" style="margin-bottom: 24px;">
               <h3>Authentication Configuration</h3>
@@ -1059,6 +1078,13 @@ const settingsForm = ref({ auth_mode: 'local' })
 const savingSettings = ref(false)
 const aiSettingsForm = ref({ gemini_api_key: '', gemini_model: 'gemini-2.5-flash', ollama_base_url: 'http://localhost:11434', ollama_model: 'llama3.1' })
 const savingAiSettings = ref(false)
+
+const teacherRegistrationToken = ref('')
+const teacherRegistrationUrl = computed(() => {
+  if (!teacherRegistrationToken.value) return 'Loading...'
+  const host = window.location.origin
+  return `${host}/register-teacher?token=${teacherRegistrationToken.value}`
+})
 const usersList = ref([])
 const userSearchQuery = ref('')
 
@@ -1116,6 +1142,51 @@ const assignForm = ref({
   peer_review_enabled: false,
   adaptive_difficulty: 'auto'
 })
+
+// State for Modals
+
+const pdfInput = ref(null)
+
+const triggerPdfUpload = () => {
+  if (pdfInput.value) {
+    pdfInput.value.click()
+  }
+}
+
+const handlePdfUpload = async (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  if (file.type !== 'application/pdf') {
+    alert('Please upload a valid PDF file.')
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const API_BASE = '/api'
+    const token = localStorage.getItem('token')
+    alert('Importing students from PDF... this might take a few seconds.')
+    const res = await fetch(`${API_BASE}/classes/import-pdf`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    })
+    
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to import PDF')
+    
+    alert(`Import complete!\n\nClasses Created: ${data.results.classesCreated}\nStudents Created: ${data.results.studentsCreated}\nClasses Already Existing: ${data.results.classesExisting}\nStudents Already Existing: ${data.results.studentsExisting}`)
+    await fetchClasses()
+  } catch (err) {
+    console.error(err)
+    alert('Error importing PDF: ' + err.message)
+  } finally {
+    event.target.value = ''
+  }
+}
+
 const selectedAssignClass = ref(null)
 
 const showResultsModal = ref(false)
@@ -1172,7 +1243,7 @@ const showImportCSVModal = ref(false)
 const csvPreview = ref([])
 const importingCSV = ref(false)
 
-const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
+const API_BASE = '/api'
 
 const fetchData = async () => {
   loading.value = true
@@ -1286,6 +1357,43 @@ const fetchAdminUsers = async () => {
   } catch (err) {
     console.error('Failed to fetch users:', err)
   }
+}
+
+const fetchTeacherToken = async () => {
+  try {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/auth/teacher-token`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      teacherRegistrationToken.value = data.token
+    }
+  } catch (err) {
+    console.error('Failed to fetch teacher token', err)
+  }
+}
+
+const generateNewTeacherToken = async () => {
+  if (!confirm('Are you sure? This will invalidate the previous registration link.')) return
+  try {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/auth/teacher-token`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      teacherRegistrationToken.value = data.token
+    }
+  } catch (err) {
+    console.error('Failed to regenerate teacher token', err)
+  }
+}
+
+const copyTeacherLink = () => {
+  navigator.clipboard.writeText(teacherRegistrationUrl.value)
+  alert('Registration link copied to clipboard!')
 }
 
 const saveAuthSettings = async () => {

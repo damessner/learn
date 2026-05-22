@@ -108,7 +108,7 @@ const error = ref(null)
 const isSubmitted = ref(false)
 const feedbackSummary = ref(null)
 
-const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
+const API_BASE = '/api'
 
 const goBack = () => {
   router.back()

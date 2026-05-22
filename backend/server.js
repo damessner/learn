@@ -34,6 +34,10 @@ const corsOptionsDelegate = (req, callback) => {
     process.env.BASE_URL,
     'http://localhost:5173',
     'http://localhost:4173',
+    'http://learnflow.intern',
+    'http://learnflow.intern:5173',
+    'http://172.16.1.61',
+    'http://172.16.1.61:5173'
   ];
   
   let isAllowed = false;

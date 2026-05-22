@@ -109,7 +109,7 @@ const localPassword = ref('')
 const guestName = ref('')
 const guestCode = ref('')
 
-const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
+const API_BASE = '/api'
 
 const fetchConfig = async () => {
   try {

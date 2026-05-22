@@ -89,7 +89,7 @@ const loading = ref(true)
 const error = ref(null)
 const courseData = ref(null)
 
-const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
+const API_BASE = '/api'
 
 const fetchCourse = async () => {
   loading.value = true

@@ -84,7 +84,7 @@ const cpForm = ref({ current: '', newPass: '', confirm: '' })
 const cpError = ref('')
 const cpLoading = ref(false)
 
-const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
+const API_BASE = '/api'
 
 const loadUser = () => {
   const userStr = localStorage.getItem('user')

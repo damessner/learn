@@ -234,7 +234,7 @@ const joinError = ref('')
 const joiningClass = ref(false)
 
 const { showToast } = useToast()
-const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
+const API_BASE = '/api'
 
 const fetchAssignments = async () => {
   loading.value = true

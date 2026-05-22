@@ -179,7 +179,7 @@ const parseStoredBoolean = (value, fallback = false) => {
 const readAloudEnabled = ref(parseStoredBoolean(localStorage.getItem('readAloudEnabled'), true))
 const hintLevel = ref({})
 
-const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
+const API_BASE = '/api'
 let autosaveTimer = null
 const OFFLINE_SAVE_KEY = 'learnflow-offline-submission-saves'
 const MAX_OFFLINE_QUEUE_SIZE = 15

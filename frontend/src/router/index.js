@@ -6,6 +6,7 @@ import WorksheetPlayer from '../views/WorksheetPlayer.vue'
 import WorksheetBuilder from '../views/WorksheetBuilder.vue'
 import WorksheetPreview from '../views/WorksheetPreview.vue'
 import CourseView from '../views/CourseView.vue'
+import TeacherRegistration from '../views/TeacherRegistration.vue'
 
 const routes = [
   {
@@ -16,6 +17,11 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: Login
+  },
+  {
+    path: '/register-teacher',
+    name: 'TeacherRegistration',
+    component: TeacherRegistration
   },
   {
     path: '/student',

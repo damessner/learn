@@ -173,7 +173,7 @@
                 </div>
               </div>
 
-              <!-- Image Block -->
+              <!-- Static Media/Audio Blocks -->
               <div v-if="block.type === 'image'" class="editor-row">
                 <label>Image Resource</label>
                 <div class="media-uploader-hud">
@@ -550,8 +550,8 @@
                 </div>
                 <button @click="block.messages.push({ sender: 'student', isGap: false, text: '' })" class="btn btn-secondary btn-sm">＋ Add Message</button>
               </div>
-\n              <!-- Static Media/Audio Blocks -->
-              <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
+              <!-- Static Media/Audio Blocks -->
+              <MediaBlock v-if="block.type === 'image'" v-bind="block" />
               <AudioBlock v-else-if="block.type === 'audio'" v-bind="block" />
             </div>
           </div>
@@ -592,7 +592,8 @@
         </template>
       </div>
     </div>
-\n    <!-- AI Generator Wizard Modal Overlay -->
+
+    <!-- AI Generator Wizard Modal Overlay -->
     <div v-if="showStartWizard" class="wizard-modal-overlay">
       <div class="wizard-modal-card">
         <!-- Loading State Overlay -->
@@ -920,7 +921,7 @@ const sheet = ref({
   blocks: []
 })
 
-const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:3001/api' : '/api'
+const API_BASE = '/api'
 
 onMounted(async () => {
   if (route.params.id) {
