@@ -157,7 +157,8 @@ router.post('/microsoft', loginLimiter, async (req, res) => {
   try {
     const db = getDB();
     const authModeSetting = db.prepare("SELECT value FROM settings WHERE key = 'auth_mode'").get();
-    if (!authModeSetting || authModeSetting.value === 'local') {
+    const authMode = authModeSetting ? authModeSetting.value : 'local';
+    if (authMode !== 'microsoft') {
       return res.status(400).json({ error: 'Microsoft login is disabled. Please use local login.' });
     }
 

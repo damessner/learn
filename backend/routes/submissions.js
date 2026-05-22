@@ -17,7 +17,8 @@ function ensureGuestAssignmentAccess(req, res) {
 
 /**
  * Returns a 403 response and false if a student is not enrolled in the assignment's class.
- * Returns true and allows execution to continue otherwise.
+ * Only enforces enrollment when the assignment has a `class_id` (class-restricted assignments).
+ * Returns true unconditionally for non-student users, guest users, or open (classless) assignments.
  */
 function ensureClassEnrollment(req, res, db, assignment) {
   if (req.user.role === 'student' && !req.user.isGuest && assignment.class_id) {
