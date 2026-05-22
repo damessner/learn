@@ -464,7 +464,7 @@
             <p class="template-desc">{{ tpl.description }}</p>
             <div class="template-meta">
               <span class="meta-item">🎯 {{ tpl.grade_level }}</span>
-              <span class="meta-item">✏️ {{ tpl.content.blocks.length }} exercises</span>
+              <span class="meta-item">✏️ {{ tpl.content?.blocks?.length ?? 0 }} exercises</span>
             </div>
             <button @click="useTemplate(tpl.id)" class="btn btn-primary btn-block btn-template-action">
               ⚡ Clone Worksheet
@@ -1764,9 +1764,17 @@ const fetchTemplates = async () => {
     const res = await fetch(`${API_BASE}/worksheets/templates`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    templates.value = await res.json()
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      console.warn('Failed to load templates:', err.error || res.statusText)
+      templates.value = []
+      return
+    }
+    const data = await res.json()
+    templates.value = Array.isArray(data) ? data : []
   } catch (err) {
     console.error('Failed to load templates:', err)
+    templates.value = []
   } finally {
     loading.value = false
   }
