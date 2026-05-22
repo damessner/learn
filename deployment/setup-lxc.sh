@@ -85,7 +85,7 @@ fi
 # Install production dependencies (avoiding devDependencies)
 # Clean up any existing node_modules to avoid cross-platform binary incompatibilities (e.g. Windows vs Linux ELF)
 rm -rf node_modules
-npm install --production --unsafe-perm
+npm install --omit=dev --unsafe-perm
 
 # Initialize Database & Seed Demo Data
 echo -e "${BLUE}Initializing SQLite database...${NC}"

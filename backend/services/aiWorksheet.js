@@ -63,7 +63,7 @@ const SYSTEM_PROMPT = [
 ].join(' ');
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
-  const { default: fetch } = await import('node-fetch');
+  // Using native global fetch
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {

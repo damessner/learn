@@ -13,7 +13,7 @@ const GRAPH_MAX_RETRIES = parseInt(process.env.GRAPH_MAX_RETRIES || '2', 10);
 const GRAPH_MAX_BACKOFF_MS = parseInt(process.env.GRAPH_MAX_BACKOFF_MS || '5000', 10);
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = GRAPH_TIMEOUT_MS) {
-  const { default: fetch } = await import('node-fetch');
+  // Using native global fetch
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {

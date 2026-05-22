@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-// Lazy-loaded node-fetch for ESM compatibility in CommonJS
-const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+// Using native global fetch
 
 let jwksCache = {
   keys: null,
