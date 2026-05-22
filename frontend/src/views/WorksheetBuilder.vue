@@ -17,7 +17,43 @@
     <div class="builder-layout">
       <!-- Left Panel: Worksheet Info & Block Manager -->
       <div class="sidebar-panel card">
-        <h3>General Settings</h3>
+
+        <!-- Add Question / Content — TOP of sidebar -->
+        <div class="add-blocks-section">
+          <h3>Add Question / Content</h3>
+          <div class="block-buttons-grid">
+            <button @click="addBlock('text')" class="btn-add-block">📝 Instructions</button>
+            <button @click="addBlock('image')" class="btn-add-block">🖼️ Image</button>
+            <button @click="addBlock('audio')" class="btn-add-block">🎵 Audio</button>
+            <button @click="addBlock('gap_fill')" class="btn-add-block">✏️ Gap Fill</button>
+            <button @click="addBlock('drag_drop')" class="btn-add-block">👉 Drag & Drop</button>
+            <button @click="addBlock('multiple_choice')" class="btn-add-block">☑️ Multi Choice</button>
+            <button @click="addBlock('single_choice')" class="btn-add-block">🔘 Single Choice</button>
+            <button @click="addBlock('matching')" class="btn-add-block">🔗 Connect Texts</button>
+            <button @click="addBlock('short_answer')" class="btn-add-block">📝 Short Answer</button>
+          </div>
+        </div>
+
+        <!-- STEM Quick Presets — collapsible accordion -->
+        <div class="stem-helper-section card glass mt-4">
+          <button class="stem-accordion-toggle" @click="stemOpen = !stemOpen">
+            <span>📐 STEM Quick Presets</span>
+            <span class="stem-chevron" :class="{ open: stemOpen }">▾</span>
+          </button>
+          <transition name="stem-expand">
+            <div v-if="stemOpen" class="stem-accordion-body">
+              <p class="field-hint mb-2">Click to insert preformatted LaTeX math/science exercises:</p>
+              <div class="stem-presets">
+                <button @click="insertSTEMPreset('quadratic')" class="btn btn-secondary btn-sm">📐 Math: Quadratic Equation (Gap Fill)</button>
+                <button @click="insertSTEMPreset('physics_velocity')" class="btn btn-secondary btn-sm">⚡ Physics: Velocity & Units (Short Answer)</button>
+                <button @click="insertSTEMPreset('chemistry_reaction')" class="btn btn-secondary btn-sm">🧪 Chem: Reaction Balancing (Gap Fill)</button>
+                <button @click="insertSTEMPreset('pythagorean')" class="btn btn-secondary btn-sm">📐 Geometry: Pythagorean (Short Answer)</button>
+              </div>
+            </div>
+          </transition>
+        </div>
+
+        <h3 style="margin-top: 20px;">General Settings</h3>
         <div class="form-group">
           <label>Builder Mode</label>
           <select v-model="builderMode">
@@ -84,31 +120,6 @@
           <span class="field-hint">Imports title/description/subject/grade and blocks from AI JSON.</span>
         </div>
 
-        <div class="add-blocks-section">
-          <h3>Add Question / Content</h3>
-          <div class="block-buttons-grid">
-            <button @click="addBlock('text')" class="btn-add-block">📝 Instructions</button>
-            <button @click="addBlock('image')" class="btn-add-block">🖼️ Image</button>
-            <button @click="addBlock('audio')" class="btn-add-block">🎵 Audio</button>
-            <button @click="addBlock('gap_fill')" class="btn-add-block">✏️ Gap Fill</button>
-            <button @click="addBlock('drag_drop')" class="btn-add-block">👉 Drag & Drop</button>
-            <button @click="addBlock('multiple_choice')" class="btn-add-block">☑️ Multi Choice</button>
-            <button @click="addBlock('single_choice')" class="btn-add-block">🔘 Single Choice</button>
-            <button @click="addBlock('matching')" class="btn-add-block">🔗 Connect Texts</button>
-            <button @click="addBlock('short_answer')" class="btn-add-block">📝 Short Answer</button>
-          </div>
-        </div>
-
-        <div class="stem-helper-section card glass mt-4">
-          <h3>📐 STEM Quick Presets</h3>
-          <p class="field-hint mb-2">Click to insert preformatted LaTeX math/science exercises:</p>
-          <div class="stem-presets">
-            <button @click="insertSTEMPreset('quadratic')" class="btn btn-secondary btn-sm">📐 Math: Quadratic Equation (Gap Fill)</button>
-            <button @click="insertSTEMPreset('physics_velocity')" class="btn btn-secondary btn-sm">⚡ Physics: Velocity & Units (Short Answer)</button>
-            <button @click="insertSTEMPreset('chemistry_reaction')" class="btn btn-secondary btn-sm">🧪 Chem: Reaction Balancing (Gap Fill)</button>
-            <button @click="insertSTEMPreset('pythagorean')" class="btn btn-secondary btn-sm">📐 Geometry: Pythagorean (Short Answer)</button>
-          </div>
-        </div>
       </div>
 
       <!-- Right Panel: Worksheet Preview / List of active blocks -->
@@ -714,6 +725,7 @@ const aiLoading = ref(false)
 const aiProvider = ref('gemini')
 const aiPrompt = ref('')
 const builderMode = ref('basic')
+const stemOpen = ref(false)
 
 // AI Wizard State Variables
 const showStartWizard = ref(false)
@@ -2399,10 +2411,55 @@ const submitLocalPreview = () => {
 
 .stem-helper-section {
   margin-top: 20px;
-  padding: 16px;
   border: 1px dashed var(--primary);
   background: rgba(99, 102, 241, 0.02);
   border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.stem-accordion-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+  text-align: left;
+  transition: background 0.2s ease;
+  min-height: auto;
+  box-shadow: none;
+  border-radius: 0;
+}
+.stem-accordion-toggle:hover {
+  background: rgba(99, 102, 241, 0.07);
+}
+.stem-chevron {
+  font-size: 1.1rem;
+  transition: transform 0.25s ease;
+  color: var(--primary);
+  display: inline-block;
+}
+.stem-chevron.open {
+  transform: rotate(180deg);
+}
+.stem-accordion-body {
+  padding: 0 16px 14px;
+}
+/* Transition animations */
+.stem-expand-enter-active,
+.stem-expand-leave-active {
+  transition: max-height 0.28s ease, opacity 0.22s ease;
+  overflow: hidden;
+  max-height: 300px;
+}
+.stem-expand-enter-from,
+.stem-expand-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 .stem-presets {
   display: flex;
