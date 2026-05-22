@@ -1,6 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const rateLimit = require('express-rate-limit');
 const { getDB } = require('../db/init');
@@ -470,11 +472,43 @@ router.post('/settings', requireAuth, requireRole('admin'), (req, res) => {
       }
     });
     transaction(updates);
+
+    // Sync relevant keys to .env and process.env
+    const envKeyMap = {
+      gemini_api_key: 'GEMINI_API_KEY',
+      gemini_model: 'GEMINI_MODEL',
+      ollama_base_url: 'OLLAMA_BASE_URL',
+      ollama_model: 'OLLAMA_MODEL'
+    };
+    const envPath = path.join(__dirname, '../.env');
+    const keysToSync = Object.keys(envKeyMap).filter(k => k in updates);
+    if (keysToSync.length > 0) {
+      try {
+        let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+        let lines = envContent.split('\n');
+        for (const settingKey of keysToSync) {
+          const envKey = envKeyMap[settingKey];
+          const newVal = String(updates[settingKey]);
+          const lineIdx = lines.findIndex(l => l.startsWith(envKey + '='));
+          if (lineIdx >= 0) {
+            lines[lineIdx] = `${envKey}=${newVal}`;
+          } else {
+            lines.push(`${envKey}=${newVal}`);
+          }
+          process.env[envKey] = newVal;
+        }
+        fs.writeFileSync(envPath, lines.join('\n'), 'utf8');
+      } catch (envErr) {
+        console.warn('[SETTINGS] Could not update .env file:', envErr.message);
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // ─── Change Password (authenticated user changes own password) ────────────────
 router.post('/change-password', requireAuth, (req, res) => {

@@ -1,7 +1,5 @@
 const { getDB } = require('../db/init');
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const AI_TIMEOUT_MS = parseInt(process.env.AI_TIMEOUT_MS || '30000', 10);
 
 function getOllamaSettings() {
@@ -12,6 +10,17 @@ function getOllamaSettings() {
   return {
     baseUrl: (urlRow && urlRow.value) || process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
     model: (modelRow && modelRow.value) || process.env.OLLAMA_MODEL || 'llama3.1'
+  };
+}
+
+function getGeminiSettings() {
+  const db = getDB();
+  const keyRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('gemini_api_key');
+  const modelRow = db.prepare('SELECT value FROM settings WHERE key = ?').get('gemini_model');
+
+  return {
+    apiKey: (keyRow && keyRow.value) || process.env.GEMINI_API_KEY || '',
+    model: (modelRow && modelRow.value) || process.env.GEMINI_MODEL || 'gemini-2.5-flash'
   };
 }
 const ALLOWED_BLOCK_TYPES = new Set([
@@ -168,12 +177,13 @@ function sanitizeWorksheet(raw) {
 }
 
 async function callGemini(prompt) {
-  if (!GEMINI_API_KEY) {
-    throw new Error('Gemini is not configured. Set GEMINI_API_KEY.');
+  const { apiKey, model } = getGeminiSettings();
+  if (!apiKey) {
+    throw new Error('Gemini is not configured. Set GEMINI_API_KEY in Admin Console or .env.');
   }
 
   const resp = await fetchWithTimeout(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -232,7 +242,7 @@ async function generateWorksheetFromAI({ provider = 'gemini', prompt }) {
   } else if (selected === 'gemini') {
     rawText = await callGemini(prompt);
   } else if (selected === 'auto') {
-    rawText = GEMINI_API_KEY ? await callGemini(prompt) : await callOllama(prompt);
+    rawText = getGeminiSettings().apiKey ? await callGemini(prompt) : await callOllama(prompt);
   } else {
     throw new Error('Unsupported provider');
   }

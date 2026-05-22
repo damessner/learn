@@ -5,9 +5,18 @@
         <h1>Educator <span>Portal</span></h1>
         <p class="subtitle">Design interactive worksheets, assign tasks, and sync grades to Teams.</p>
       </div>
-      <router-link to="/teacher/builder" class="btn btn-primary">
-        <span>＋</span> Create Worksheet
-      </router-link>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button
+          v-if="currentUser?.role === 'admin'"
+          @click="async () => { await fetchAdminSettings(); await fetchAdminUsers(); showAdminConsole = true; }"
+          class="btn btn-secondary"
+          title="Administrator Console"
+          style="padding: 8px 14px; font-size: 1.1rem;"
+        >⚙️</button>
+        <router-link to="/teacher/builder" class="btn btn-primary">
+          <span>＋</span> Create Worksheet
+        </router-link>
+      </div>
     </header>
 
     <div v-if="error" class="error-banner">
@@ -41,7 +50,7 @@
         @click="switchTab(tab)"
         :class="['tab-btn', { active: activeTab === tab }]"
       >
-        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : tab === 'courses' ? 'Courses' : tab === 'templates' ? 'Templates Library' : 'System Settings ⚙️' }}
+        {{ tab === 'worksheets' ? 'Worksheets' : tab === 'assignments' ? 'Assignments' : tab === 'classes' ? 'Classes & Groups' : tab === 'courses' ? 'Courses' : 'Templates Library' }}
       </button>
     </div>
     <!-- Worksheets Tab -->
@@ -474,147 +483,156 @@
         </div>
     </div>
 
-    <!-- Settings Tab -->
-    <div v-if="activeTab === 'settings'" class="tab-content">
-      <div class="settings-overview">
-        <div class="section-actions-header">
-          <h2>System Settings & User Management</h2>
-          <p class="subtitle">Configure system-wide settings, authentication rules, and manage user accounts.</p>
+    <!-- Administrator Console Modal -->
+    <div v-if="showAdminConsole" class="modal-overlay">
+      <div class="modal modal-lg card">
+        <div class="modal-header">
+          <h2>Administrator Console ⚙️</h2>
+          <button @click="showAdminConsole = false" class="btn-close">×</button>
         </div>
-
-        <div class="settings-grid">
-          <!-- Auth Configuration Card -->
-          <div class="settings-card card glass" style="margin-bottom: 24px;">
-            <h3>Authentication Configuration</h3>
-            <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">
-              Control how educators and students log in to the portal.
-            </p>
-            
-            <form @submit.prevent="saveAuthSettings" class="settings-form">
-              <div class="form-group">
-                <label style="display: block; margin-bottom: 12px; font-weight: 500;">Authentication Mode</label>
-                <div class="radio-group" style="display: flex; flex-direction: column; gap: 12px;">
-                  <label class="radio-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
-                    <input type="radio" value="local" v-model="settingsForm.auth_mode" style="margin-top: 4px;" />
-                    <span class="radio-text">
-                      <strong style="display: block; font-size: 0.95rem;">Local Credentials (Default)</strong>
-                      <span class="help-text" style="display: block; font-size: 0.8rem; color: var(--text-muted);">Users login with a local username/email and password.</span>
-                    </span>
-                  </label>
-                  <label class="radio-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
-                    <input type="radio" value="microsoft" v-model="settingsForm.auth_mode" style="margin-top: 4px;" />
-                    <span class="radio-text">
-                      <strong style="display: block; font-size: 0.95rem;">Microsoft Entra ID (SSO)</strong>
-                      <span class="help-text" style="display: block; font-size: 0.8rem; color: var(--text-muted);">Users login via school Microsoft 365 Single Sign-On.</span>
-                    </span>
-                  </label>
-                </div>
-              </div>
-
-              <div class="settings-action">
-                <button type="submit" class="btn btn-primary" :disabled="savingSettings">
-                  {{ savingSettings ? 'Saving...' : 'Save Configuration 💾' }}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <!-- AI Configuration Card -->
-          <div class="settings-card card glass" style="margin-bottom: 24px;">
-            <h3>AI Generation Integrations</h3>
-            <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">
-              Configure Ollama for local LLM worksheet generation.
-            </p>
-            
-            <form @submit.prevent="saveAiSettings" class="settings-form">
-              <div class="form-group" style="margin-bottom: 12px;">
-                <label style="display: block; margin-bottom: 6px; font-weight: 500;">Ollama Base URL</label>
-                <input type="text" v-model="aiSettingsForm.ollama_base_url" placeholder="http://localhost:11434" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
-              </div>
-              <div class="form-group" style="margin-bottom: 12px;">
-                <label style="display: block; margin-bottom: 6px; font-weight: 500;">Ollama Model Name</label>
-                <input type="text" v-model="aiSettingsForm.ollama_model" placeholder="llama3.1" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
-              </div>
-
-              <div class="settings-action" style="margin-top: 20px;">
-                <button type="submit" class="btn btn-primary" :disabled="savingAiSettings">
-                  {{ savingAiSettings ? 'Saving...' : 'Save AI Config 🤖' }}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <!-- User Management Card -->
-          <div class="settings-card card glass user-management-card">
-            <div class="card-header-flex" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
-              <div>
-                <h3>User Accounts Roster</h3>
-                <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">
-                  Create and modify accounts for students, teachers, and admins.
-                </p>
-              </div>
-              <button @click="openCreateUserModal" class="btn btn-primary btn-sm">
-                Register New User 👤
-              </button>
-            </div>
-
-            <div class="search-bar-container" style="margin-bottom: 16px;">
-              <input 
-                type="text" 
-                v-model="userSearchQuery" 
-                placeholder="Search name, username, or email..." 
-                class="form-control"
-                style="width: 100%; max-width: 400px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);"
-              />
-            </div>
-
-            <div class="table-container" style="overflow-x: auto; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid var(--border-color);">
-              <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left;">
-                <thead>
-                  <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02);">
-                    <th style="padding: 12px 16px;">Name</th>
-                    <th style="padding: 12px 16px;">Username / Email</th>
-                    <th style="padding: 12px 16px;">Role</th>
-                    <th style="padding: 12px 16px;">Last Login</th>
-                    <th style="padding: 12px 16px;">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="usr in filteredUsers" :key="usr.id" style="border-bottom: 1px solid var(--border-color);">
-                    <td style="padding: 12px 16px;">
-                      <strong>{{ usr.name }}</strong>
-                      <span v-if="usr.id === currentUser?.id" class="badge badge-success" style="margin-left: 8px; background: #28a745; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; color: white;">You</span>
-                    </td>
-                    <td style="padding: 12px 16px;">
-                      <div class="user-meta-field" style="font-size: 0.85rem; color: var(--text-color);">👤 {{ usr.username || 'N/A' }}</div>
-                      <div class="user-meta-field" style="font-size: 0.85rem; color: var(--text-muted);">✉️ {{ usr.email || 'N/A' }}</div>
-                    </td>
-                    <td style="padding: 12px 16px;">
-                      <span :class="['badge', usr.role === 'admin' ? 'badge-danger' : usr.role === 'teacher' ? 'badge-success' : 'badge-info']" style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
-                        {{ usr.role }}
+        <div class="settings-overview" style="max-height: 80vh; overflow-y: auto; padding: 8px 0;">
+          <div class="settings-grid">
+            <!-- Auth Configuration Card -->
+            <div class="settings-card card glass" style="margin-bottom: 24px;">
+              <h3>Authentication Configuration</h3>
+              <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">
+                Control how educators and students log in to the portal.
+              </p>
+              
+              <form @submit.prevent="saveAuthSettings" class="settings-form">
+                <div class="form-group">
+                  <label style="display: block; margin-bottom: 12px; font-weight: 500;">Authentication Mode</label>
+                  <div class="radio-group" style="display: flex; flex-direction: column; gap: 12px;">
+                    <label class="radio-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                      <input type="radio" value="local" v-model="settingsForm.auth_mode" style="margin-top: 4px;" />
+                      <span class="radio-text">
+                        <strong style="display: block; font-size: 0.95rem;">Local Credentials (Default)</strong>
+                        <span class="help-text" style="display: block; font-size: 0.8rem; color: var(--text-muted);">Users login with a local username/email and password.</span>
                       </span>
-                    </td>
-                    <td style="padding: 12px 16px; font-size: 0.85rem; color: var(--text-muted);">
-                      {{ usr.last_login ? new Date(usr.last_login).toLocaleString() : 'Never' }}
-                    </td>
-                    <td style="padding: 12px 16px;">
-                      <div class="action-buttons-cell" style="display: flex; gap: 8px;">
-                        <button @click="openEditUserModal(usr)" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.8rem;">Edit</button>
-                        <button @click="openChangePasswordModal(usr)" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.8rem;">Password</button>
-                        <button 
-                          v-if="usr.id !== currentUser?.id" 
-                          @click="deleteUserAccount(usr)" 
-                          class="btn btn-danger btn-sm"
-                          style="padding: 4px 8px; font-size: 0.8rem; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;"
-                        >Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-if="filteredUsers.length === 0">
-                    <td colspan="5" class="text-center" style="padding: 24px; text-align: center; color: var(--text-muted);">No users match your search.</td>
-                  </tr>
-                </tbody>
-              </table>
+                    </label>
+                    <label class="radio-label" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                      <input type="radio" value="microsoft" v-model="settingsForm.auth_mode" style="margin-top: 4px;" />
+                      <span class="radio-text">
+                        <strong style="display: block; font-size: 0.95rem;">Microsoft Entra ID (SSO)</strong>
+                        <span class="help-text" style="display: block; font-size: 0.8rem; color: var(--text-muted);">Users login via school Microsoft 365 Single Sign-On.</span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="settings-action">
+                  <button type="submit" class="btn btn-primary" :disabled="savingSettings">
+                    {{ savingSettings ? 'Saving...' : 'Save Configuration 💾' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- AI Configuration Card -->
+            <div class="settings-card card glass" style="margin-bottom: 24px;">
+              <h3>AI Generation Integrations</h3>
+              <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">
+                Configure AI providers for worksheet generation (Gemini API and Ollama local LLM).
+              </p>
+              
+              <form @submit.prevent="saveAiSettings" class="settings-form">
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500;">Gemini API Key</label>
+                  <input type="password" v-model="aiSettingsForm.gemini_api_key" placeholder="Enter your Google Gemini API key" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500;">Gemini Model</label>
+                  <input type="text" v-model="aiSettingsForm.gemini_model" placeholder="gemini-2.5-flash" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500;">Ollama Base URL</label>
+                  <input type="text" v-model="aiSettingsForm.ollama_base_url" placeholder="http://localhost:11434" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500;">Ollama Model Name</label>
+                  <input type="text" v-model="aiSettingsForm.ollama_model" placeholder="llama3.1" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);" />
+                </div>
+
+                <div class="settings-action" style="margin-top: 20px;">
+                  <button type="submit" class="btn btn-primary" :disabled="savingAiSettings">
+                    {{ savingAiSettings ? 'Saving...' : 'Save AI Config 🤖' }}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- User Management Card -->
+            <div class="settings-card card glass user-management-card">
+              <div class="card-header-flex" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px;">
+                <div>
+                  <h3>User Accounts Roster</h3>
+                  <p class="card-desc" style="font-size: 0.9rem; color: var(--text-muted); margin: 0;">
+                    Create and modify accounts for students, teachers, and admins.
+                  </p>
+                </div>
+                <button @click="openCreateUserModal" class="btn btn-primary btn-sm">
+                  Register New User 👤
+                </button>
+              </div>
+
+              <div class="search-bar-container" style="margin-bottom: 16px;">
+                <input 
+                  type="text" 
+                  v-model="userSearchQuery" 
+                  placeholder="Search name, username, or email..." 
+                  class="form-control"
+                  style="width: 100%; max-width: 400px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.05); color: var(--text-color);"
+                />
+              </div>
+
+              <div class="table-container" style="overflow-x: auto; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid var(--border-color);">
+                <table class="data-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.02);">
+                      <th style="padding: 12px 16px;">Name</th>
+                      <th style="padding: 12px 16px;">Username / Email</th>
+                      <th style="padding: 12px 16px;">Role</th>
+                      <th style="padding: 12px 16px;">Last Login</th>
+                      <th style="padding: 12px 16px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="usr in filteredUsers" :key="usr.id" style="border-bottom: 1px solid var(--border-color);">
+                      <td style="padding: 12px 16px;">
+                        <strong>{{ usr.name }}</strong>
+                        <span v-if="usr.id === currentUser?.id" class="badge badge-success" style="margin-left: 8px; background: #28a745; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; color: white;">You</span>
+                      </td>
+                      <td style="padding: 12px 16px;">
+                        <div class="user-meta-field" style="font-size: 0.85rem; color: var(--text-color);">👤 {{ usr.username || 'N/A' }}</div>
+                        <div class="user-meta-field" style="font-size: 0.85rem; color: var(--text-muted);">✉️ {{ usr.email || 'N/A' }}</div>
+                      </td>
+                      <td style="padding: 12px 16px;">
+                        <span :class="['badge', usr.role === 'admin' ? 'badge-danger' : usr.role === 'teacher' ? 'badge-success' : 'badge-info']" style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                          {{ usr.role }}
+                        </span>
+                      </td>
+                      <td style="padding: 12px 16px; font-size: 0.85rem; color: var(--text-muted);">
+                        {{ usr.last_login ? new Date(usr.last_login).toLocaleString() : 'Never' }}
+                      </td>
+                      <td style="padding: 12px 16px;">
+                        <div class="action-buttons-cell" style="display: flex; gap: 8px;">
+                          <button @click="openEditUserModal(usr)" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.8rem;">Edit</button>
+                          <button @click="openChangePasswordModal(usr)" class="btn btn-secondary btn-sm" style="padding: 4px 8px; font-size: 0.8rem;">Password</button>
+                          <button 
+                            v-if="usr.id !== currentUser?.id" 
+                            @click="deleteUserAccount(usr)" 
+                            class="btn btn-danger btn-sm"
+                            style="padding: 4px 8px; font-size: 0.8rem; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                          >Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr v-if="filteredUsers.length === 0">
+                      <td colspan="5" class="text-center" style="padding: 24px; text-align: center; color: var(--text-muted);">No users match your search.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -1031,17 +1049,15 @@ const currentUser = ref(null)
 
 // Computed availableTabs based on role
 const availableTabs = computed(() => {
-  const tabs = ['worksheets', 'courses', 'assignments', 'classes', 'templates']
-  if (currentUser.value && currentUser.value.role === 'admin') {
-    tabs.push('settings')
-  }
-  return tabs
+  return ['worksheets', 'courses', 'assignments', 'classes', 'templates']
 })
+
+const showAdminConsole = ref(false)
 
 // Settings State
 const settingsForm = ref({ auth_mode: 'local' })
 const savingSettings = ref(false)
-const aiSettingsForm = ref({ ollama_base_url: 'http://localhost:11434', ollama_model: 'llama3.1' })
+const aiSettingsForm = ref({ gemini_api_key: '', gemini_model: 'gemini-2.5-flash', ollama_base_url: 'http://localhost:11434', ollama_model: 'llama3.1' })
 const savingAiSettings = ref(false)
 const usersList = ref([])
 const userSearchQuery = ref('')
@@ -1226,6 +1242,8 @@ const fetchAdminSettings = async () => {
       const data = await res.json()
       settingsForm.value = { auth_mode: data.auth_mode || 'local' }
       aiSettingsForm.value = { 
+        gemini_api_key: data.gemini_api_key || '',
+        gemini_model: data.gemini_model || 'gemini-2.5-flash',
         ollama_base_url: data.ollama_base_url || 'http://localhost:11434',
         ollama_model: data.ollama_model || 'llama3.1'
       }
@@ -1425,9 +1443,6 @@ const switchTab = async (tab) => {
     await fetchClasses()
   } else if (tab === 'templates') {
     await fetchTemplates()
-  } else if (tab === 'settings') {
-    await fetchAdminSettings()
-    await fetchAdminUsers()
   }
 }
 
