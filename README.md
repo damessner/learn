@@ -9,6 +9,7 @@ An interactive, high-performance web-based learning and worksheet system designe
   - **Multiple & Single Choice**: Choice grids with clear correct/incorrect highlights.
   - **Matching / Connect**: SVG canvas rendering connection lines between items.
   - **Rich Media**: In-line audio widgets and expandable zoom lightboxes for images.
+  - **YouTube Video Block**: Embed any YouTube video using its normal URL. Comprehension questions can be added directly below the video player; students answer them as part of the worksheet.
 - **Authentication Flexibility**: Choice of Local Credentials (username/password) or Microsoft Entra ID (SSO) login.
 - **Admin Dashboard Settings**: Full User Account Roster (register, edit, change password, delete), real-time authentication mode selection, and **AI Generation Integrations** to dynamically configure local LLM settings.
 - **Teams Sync**: Push grades directly into Microsoft Teams assignments.
@@ -17,6 +18,9 @@ An interactive, high-performance web-based learning and worksheet system designe
 - **AI Worksheet Drafting**: Generate compact worksheet JSON drafts in the builder via **Gemini API** or **Ollama** (Ollama URL and model name are configurable via Settings in the Admin UI).
 - **Worksheet Preview Mode**: Reuses the interactive player components allowing teachers to solve and preview worksheet scoring dynamically without database submissions.
 - **Structured Courses (Option B)**: Teachers can group worksheets into sequential courses and assign them to classes. Students proceed through worksheets in order, with subsequent assignments remaining locked until pre-requisite worksheets are completed.
+- **System Library**: All published worksheets are stored in a shared system library, browsable by all teachers. Any worksheet can be published to the library with one click and cloned into a teacher's personal account. AI-generated and template-derived worksheets can be auto-flagged for the library.
+- **Star Ratings**: Both worksheets and courses carry separate **student** and **teacher** rating aggregates (1–5 stars). Each user can submit or update one rating per item. Library and browse views display average star scores and rating counts and support **sorting by student or teacher rating**.
+- **Search & Sort**: The library browser supports full-text search by title/subject and sorting by title, student average rating, or teacher average rating (ascending or descending).
 
 ---
 
@@ -235,3 +239,69 @@ LearnFlow comes pre-seeded with admin credentials and a sample student assignmen
 - Enter Name: **Marie Meier**
 - Enter Assignment Code: **5a1b-c3d4**
 - Click **Start Assignment** to practice, auto-save drafts, and review grade scoring!
+
+---
+
+## 📹 YouTube Video Block
+
+Teachers can embed any YouTube video directly inside a worksheet using the **Video** block type in the Worksheet Builder.
+
+### Adding a video block
+1. Open the **Worksheet Builder** and click **+ Video** in the block toolbox.
+2. Paste any standard YouTube URL — the following formats are all recognised:
+   - `https://www.youtube.com/watch?v=dQw4w9WgXcQ`
+   - `https://youtu.be/dQw4w9WgXcQ`
+   - `https://www.youtube.com/embed/dQw4w9WgXcQ`
+3. Set a title and add as many comprehension questions as needed. Each question becomes a free-text answer field displayed below the video.
+
+### Student experience
+- The video is embedded in a responsive 16:9 iframe player.
+- Comprehension questions appear directly below the video.
+- Students fill in the answers as part of the worksheet (answers are captured in their submission).
+
+---
+
+## 🏛️ System Library
+
+All published worksheets are visible in the **System Library** — a shared, read-only catalogue browseable by every teacher.
+
+### Publishing to the library
+- In the **Worksheets** tab of the Teacher Dashboard, each worksheet row has a **📤 Publish** button.
+- Clicking it marks the worksheet as `in_library` and makes it visible to all teachers.
+- Click **🏛️** (the same button once published) to remove it from the library.
+
+### Browsing & cloning
+- Open the **Library** tab in the Teacher Dashboard.
+- Use the **search box** to filter by title or subject, and the **sort dropdown** to order by title, student rating, or teacher rating.
+- Click **Clone** on any worksheet to add an independent copy to your own worksheet list.
+
+---
+
+## ⭐ Star Ratings
+
+Worksheets and courses carry two separate rating aggregates: **student ratings** and **teacher ratings**.
+
+| Role | Can rate | Shown as |
+|------|----------|----------|
+| Student | After completing a worksheet | Rating prompt on the results screen |
+| Teacher | From the Library browser | Inline star selector on each library card |
+
+### Behaviour
+- Each user can submit **one rating per item** (1–5 stars). Re-submitting updates the existing rating.
+- Average and count for both student and teacher ratings are displayed on each library card.
+- The Library browser can be **sorted by student average** or **teacher average** (ascending or descending).
+
+### API surface
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `GET /api/library/worksheets` | GET | Teacher | List library worksheets with rating aggregates |
+| `POST /api/library/worksheets/:id/publish` | POST | Teacher | Publish worksheet to library |
+| `POST /api/library/worksheets/:id/unpublish` | POST | Teacher | Remove worksheet from library |
+| `POST /api/library/worksheets/:id/clone` | POST | Teacher | Clone library worksheet to own account |
+| `GET /api/library/ratings/:type/:id` | GET | Any auth | Get rating aggregates + caller's own rating |
+| `POST /api/library/ratings/:type/:id` | POST | Any auth | Submit or update a rating (body: `{rating: 1-5}`) |
+
+Query parameters for `GET /api/library/worksheets`:
+- `search` — full-text filter on title / subject
+- `sortBy` — `title` | `student_rating` | `teacher_rating` (default: `title`)
+- `order` — `asc` | `desc` (default: `asc`)

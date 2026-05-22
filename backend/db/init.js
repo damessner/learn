@@ -282,6 +282,38 @@ async function initDB() {
     // Index already exists
   }
 
+  // ─── New: library flag + source on worksheets ──────────────────────────────
+  try {
+    database.exec("ALTER TABLE worksheets ADD COLUMN in_library INTEGER DEFAULT 0;");
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    database.exec("ALTER TABLE worksheets ADD COLUMN library_source TEXT DEFAULT '';");
+  } catch (e) {
+    // Column already exists
+  }
+
+  // ─── New: unified ratings table ────────────────────────────────────────────
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS ratings (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        item_type TEXT NOT NULL CHECK(item_type IN ('worksheet', 'course')),
+        item_id TEXT NOT NULL,
+        rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+        rater_role TEXT NOT NULL DEFAULT 'student',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(user_id, item_type, item_id)
+      );
+    `);
+    database.exec("CREATE INDEX IF NOT EXISTS idx_ratings_item ON ratings(item_type, item_id);");
+  } catch (e) {
+    // Table already exists
+  }
+
   // Seed default settings
   database.prepare(`
     INSERT OR IGNORE INTO settings (key, value)

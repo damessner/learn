@@ -72,6 +72,11 @@
                 <span class="btn-text" v-if="leftExpanded">Read Aloud</span>
                 <span class="info-icon" v-if="leftExpanded">ℹ️</span>
               </button>
+              <button @click="addBlock('video')" class="btn-add-block" title="Embed a YouTube video with optional comprehension questions">
+                <span class="btn-icon">🎬</span>
+                <span class="btn-text" v-if="leftExpanded">YouTube Video</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
             </div>
 
             <h3 class="mt-4" v-if="leftExpanded">Basic Questions</h3>
@@ -214,6 +219,23 @@
                   <input type="text" v-model="block.url" placeholder="Or paste audio URL" />
                 </div>
                 <input type="text" v-model="block.label" placeholder="Audio Title / Label..." class="mt-2" />
+              </div>
+
+              <!-- YouTube Video Block -->
+              <div v-if="block.type === 'video'" class="editor-row">
+                <label>YouTube Video URL</label>
+                <input type="text" v-model="block.url" placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ" class="mb-2" />
+                <span class="field-hint">Paste any YouTube link: youtube.com/watch?v=..., youtu.be/..., or youtube.com/embed/...</span>
+                <input type="text" v-model="block.caption" placeholder="Optional caption..." class="mt-2 mb-3" />
+
+                <label>Comprehension Questions (optional)</label>
+                <div v-for="(q, qIdx) in (block.questions || [])" :key="qIdx" class="pair-editor-row mb-2">
+                  <input type="text" v-model="block.questions[qIdx].text" placeholder="Question text" />
+                  <button @click="block.questions.splice(qIdx, 1)" class="btn-sm btn-danger">×</button>
+                </div>
+                <button @click="block.questions = [...(block.questions || []), { text: '' }]" class="btn btn-secondary btn-sm">
+                  ＋ Add Question
+                </button>
               </div>
 
               <!-- Read Aloud (TTS) Block -->
@@ -1395,6 +1417,12 @@ const addBlock = (type) => {
         { sender: 'teacher', isGap: false, text: 'Hello, how are you?' },
         { sender: 'student', isGap: true, textBefore: 'I am doing ', textAfter: '.', answer: 'well' }
       ]
+      break
+    case 'video':
+      baseBlock.points = 0
+      baseBlock.url = ''
+      baseBlock.caption = ''
+      baseBlock.questions = []
       break
   }
 
