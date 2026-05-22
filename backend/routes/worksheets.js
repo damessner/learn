@@ -262,10 +262,7 @@ router.get('/:id', requireAuth, (req, res) => {
     const accessible = db.prepare(`
       SELECT 1 FROM assignments a
       WHERE a.worksheet_id = ?
-        AND (
-          a.class_id IS NULL
-          OR a.class_id IN (SELECT class_id FROM class_students WHERE student_id = ?)
-        )
+        AND a.class_id IN (SELECT class_id FROM class_students WHERE student_id = ?)
       LIMIT 1
     `).get(worksheet.id, req.user.userId);
     if (!accessible) return res.status(403).json({ error: 'Worksheet not assigned to you' });

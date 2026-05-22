@@ -15,6 +15,23 @@ function ensureGuestAssignmentAccess(req, res) {
   return true;
 }
 
+/**
+ * Returns a 403 response and false if a student is not enrolled in the assignment's class.
+ * Returns true and allows execution to continue otherwise.
+ */
+function ensureClassEnrollment(req, res, db, assignment) {
+  if (req.user.role === 'student' && !req.user.isGuest && assignment.class_id) {
+    const enrolled = db.prepare(
+      'SELECT 1 FROM class_students WHERE class_id = ? AND student_id = ?'
+    ).get(assignment.class_id, req.user.userId);
+    if (!enrolled) {
+      res.status(403).json({ error: 'You are not enrolled in this class' });
+      return false;
+    }
+  }
+  return true;
+}
+
 // ─── Get my submission for an assignment ──────────────────────────────────────
 router.get('/assignment/:assignmentId', requireAuth, (req, res) => {
   if (!ensureGuestAssignmentAccess(req, res)) return;
@@ -47,12 +64,7 @@ router.post('/assignment/:assignmentId/save', requireAuth, (req, res) => {
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
 
   // Verify student is enrolled in the assignment's class (if class-restricted)
-  if (req.user.role === 'student' && !req.user.isGuest && assignment.class_id) {
-    const enrolled = db.prepare(
-      'SELECT 1 FROM class_students WHERE class_id = ? AND student_id = ?'
-    ).get(assignment.class_id, userId);
-    if (!enrolled) return res.status(403).json({ error: 'You are not enrolled in this class' });
-  }
+  if (!ensureClassEnrollment(req, res, db, assignment)) return;
 
   // Upsert submission (save progress, not submitted yet)
   const existing = db.prepare('SELECT id FROM submissions WHERE assignment_id = ? AND user_id = ?')
@@ -90,12 +102,7 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
 
   // Verify student is enrolled in the assignment's class (if class-restricted)
-  if (req.user.role === 'student' && !req.user.isGuest && assignment.class_id) {
-    const enrolled = db.prepare(
-      'SELECT 1 FROM class_students WHERE class_id = ? AND student_id = ?'
-    ).get(assignment.class_id, userId);
-    if (!enrolled) return res.status(403).json({ error: 'You are not enrolled in this class' });
-  }
+  if (!ensureClassEnrollment(req, res, db, assignment)) return;
 
   const retryPolicy = assignment.retry_policy || 'single';
   const maxAttempts = Math.max(1, Number(assignment.max_attempts) || 1);
