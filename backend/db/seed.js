@@ -116,6 +116,17 @@ function seed() {
     1
   );
 
+  // 4. Create the class and enroll the demo student so the regular student login shows the worksheet
+  db.prepare(`
+    INSERT OR IGNORE INTO classes (id, name, created_by)
+    VALUES (?, ?, ?)
+  `).run('class_3a_id', '3a English', teacherId);
+
+  db.prepare(`
+    INSERT OR IGNORE INTO class_students (class_id, student_id)
+    VALUES (?, ?)
+  `).run('class_3a_id', studentId);
+
   // 3. Create a Test Assignment
   const assignmentId = '5a1b-c3d4'; // This serves as our guest code too!
   db.prepare(`
@@ -130,17 +141,6 @@ function seed() {
     '2026-06-30T12:00:00.000Z',
     teacherId
   );
-
-  // 4. Create the class and enroll the demo student so the regular student login shows the worksheet
-  db.prepare(`
-    INSERT OR IGNORE INTO classes (id, name, created_by)
-    VALUES (?, ?, ?)
-  `).run('class_3a_id', '3a English', teacherId);
-
-  db.prepare(`
-    INSERT OR IGNORE INTO class_students (class_id, student_id)
-    VALUES (?, ?)
-  `).run('class_3a_id', studentId);
 
   // ─── 5. Seed Present Progressive Course (Option B) ─────────────────────────
   const courseId = 'course_present_progressive_id';
