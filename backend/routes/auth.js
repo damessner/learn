@@ -534,6 +534,87 @@ router.post('/change-password', requireAuth, (req, res) => {
   }
 });
 
+// ─── Get/Regenerate Teacher Registration Token ────────────────────────────────
+router.get('/teacher-token', requireAuth, requireRole('admin', 'teacher'), (req, res) => {
+  try {
+    const db = getDB();
+    let tokenRow = db.prepare("SELECT value FROM settings WHERE key = 'teacher_registration_token'").get();
+    let token;
+    if (!tokenRow) {
+      token = crypto.randomBytes(16).toString('hex');
+      db.prepare("INSERT INTO settings (key, value) VALUES ('teacher_registration_token', ?)").run(token);
+    } else {
+      token = tokenRow.value;
+    }
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/teacher-token', requireAuth, requireRole('admin', 'teacher'), (req, res) => {
+  try {
+    const db = getDB();
+    const token = crypto.randomBytes(16).toString('hex');
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('teacher_registration_token', ?)").run(token);
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/register-teacher', (req, res) => {
+  const { token, name, username, password, email } = req.body;
+  if (!token || !name || !username || !password) {
+    return res.status(400).json({ error: 'Missing required registration fields' });
+  }
+  try {
+    const db = getDB();
+    const tokenRow = db.prepare("SELECT value FROM settings WHERE key = 'teacher_registration_token'").get();
+    if (!tokenRow || tokenRow.value !== token) {
+      return res.status(401).json({ error: 'Invalid or expired registration token' });
+    }
+
+    // Check if username/email already exists
+    const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(username.trim());
+    if (existingUser) return res.status(400).json({ error: 'Username already in use' });
+
+    if (email && email.trim()) {
+      const existingEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(email.trim().toLowerCase());
+      if (existingEmail) return res.status(400).json({ error: 'Email already in use' });
+    }
+
+    const id = uuidv4();
+    const passHash = hashPassword(password);
+
+    db.prepare(`
+      INSERT INTO users (id, ms_id, username, password_hash, name, email, role, last_login)
+      VALUES (?, NULL, ?, ?, ?, ?, 'teacher', datetime('now'))
+    `).run(
+      id,
+      username.trim(),
+      passHash,
+      name.trim(),
+      email ? email.trim().toLowerCase() : null
+    );
+
+    // Generate JWT for the newly registered teacher
+    const user = db.prepare('SELECT id, name, email, username, role FROM users WHERE id = ?').get(id);
+    const jwtToken = jwt.sign(
+      { userId: user.id, username: user.username, role: user.role, name: user.name },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.status(201).json({
+      token: jwtToken,
+      user
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Middleware ────────────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
   const header = req.headers.authorization;
@@ -549,8 +630,9 @@ function requireAuth(req, res, next) {
 }
 
 function requireRole(...roles) {
+  const allowedRoles = roles.flat();
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
     next();

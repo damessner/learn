@@ -21,6 +21,7 @@
           <div class="user-dropdown" ref="dropdownRef">
             <button @click="showDropdown = !showDropdown" class="btn-icon" title="Account">⚙️</button>
             <div v-if="showDropdown" class="dropdown-menu">
+              <button v-if="user.role === 'admin'" @click="goToAdmin">Admin Panel ⚙️</button>
               <button @click="openChangePassword">Change Password</button>
               <button @click="logout" class="danger">Sign Out</button>
             </div>
@@ -129,6 +130,11 @@ const openChangePassword = () => {
   cpForm.value = { current: '', newPass: '', confirm: '' }
   cpError.value = ''
   showChangePassword.value = true
+}
+
+const goToAdmin = () => {
+  showDropdown.value = false
+  router.push('/admin')
 }
 
 const submitChangePassword = async () => {

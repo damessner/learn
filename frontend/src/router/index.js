@@ -7,6 +7,7 @@ import WorksheetBuilder from '../views/WorksheetBuilder.vue'
 import WorksheetPreview from '../views/WorksheetPreview.vue'
 import CourseView from '../views/CourseView.vue'
 import TeacherRegistration from '../views/TeacherRegistration.vue'
+import AdminDashboard from '../views/AdminDashboard.vue'
 
 const routes = [
   {
@@ -58,6 +59,12 @@ const routes = [
     name: 'WorksheetPreview',
     component: WorksheetPreview,
     meta: { requiresAuth: true, role: ['teacher', 'admin'] }
+  },
+  {
+    path: '/admin',
+    name: 'AdminDashboard',
+    component: AdminDashboard,
+    meta: { requiresAuth: true, role: 'admin' }
   }
 ]
 

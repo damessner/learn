@@ -34,6 +34,10 @@
               <span class="btn-text">🎵 Audio</span>
               <span class="info-icon">ℹ️</span>
             </button>
+            <button @click="addBlock('tts_text')" class="btn-add-block" title="Display text that is read aloud by a natural neural voice">
+              <span class="btn-text">🗣️ Read Aloud</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
           </div>
 
           <h3 class="mt-4">Basic Questions</h3>
@@ -244,6 +248,66 @@
                   <input type="text" v-model="block.url" placeholder="Or paste audio URL" />
                 </div>
                 <input type="text" v-model="block.label" placeholder="Audio Title / Label..." class="mt-2" />
+              </div>
+
+              <!-- Read Aloud (TTS) Block -->
+              <div v-if="block.type === 'tts_text'" class="editor-row">
+                <label>Read Aloud Block Label / Title</label>
+                <input type="text" v-model="block.label" placeholder="e.g. Listen and Read" class="mb-3" />
+                
+                <label>Text to read aloud</label>
+                <textarea 
+                  v-model="block.text" 
+                  placeholder="Paste the text you want the voice to read aloud here..." 
+                  rows="4"
+                  class="mb-3"
+                ></textarea>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px;" class="mb-3">
+                  <div>
+                    <label>Language</label>
+                    <select v-model="block.language" @change="onLanguageChange(block)">
+                      <option value="de-AT">Austrian German (de-AT)</option>
+                      <option value="de-DE">Standard German (de-DE)</option>
+                      <option value="en-US">US English (en-US)</option>
+                      <option value="en-GB">UK English (en-GB)</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label>Engine</label>
+                    <select v-model="block.engine" @change="onLanguageChange(block)">
+                      <option value="cloud">Edge Neural (Cloud)</option>
+                      <option value="local">SAPI5 (Local Fallback)</option>
+                    </select>
+                  </div>
+                  
+                  <div v-if="block.engine === 'cloud'">
+                    <label>Voice / Tone</label>
+                    <select v-model="block.voice">
+                      <option v-for="v in getVoicesForLang(block.language)" :key="v.value" :value="v.value">
+                        {{ v.name }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="audio-generation-hud" style="display: flex; gap: 12px; align-items: center;">
+                  <button 
+                    @click="generateTTSAudio(block)" 
+                    class="btn btn-primary"
+                    :disabled="isGeneratingTTS[block.id] || !block.text || !block.text.trim()"
+                  >
+                    <span v-if="isGeneratingTTS[block.id]">⏳ Generating...</span>
+                    <span v-else>🗣️ Generate Audio File</span>
+                  </button>
+                  <span class="field-hint" v-if="block.url" style="color: var(--success); font-weight: 600; margin: 0;">
+                    ✓ Audio generated successfully!
+                  </span>
+                  <span class="field-hint" v-else style="margin: 0;">
+                    ⚠️ Click to generate the audio file.
+                  </span>
+                </div>
               </div>
 
               <!-- Gap Fill Question -->
@@ -606,6 +670,7 @@
               <!-- Static Media/Audio Blocks -->
               <MediaBlock v-if="block.type === 'image'" v-bind="block" />
               <AudioBlock v-else-if="block.type === 'audio'" v-bind="block" />
+              <ReadAloudBlock v-else-if="block.type === 'tts_text'" v-bind="block" />
             </div>
           </div>
         </div>
@@ -904,12 +969,14 @@ import SingleChoice from '../components/exercises/SingleChoice.vue'
 import Matching from '../components/exercises/Matching.vue'
 import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
+import ReadAloudBlock from '../components/exercises/ReadAloudBlock.vue'
 import Vocabulary from '../components/exercises/Vocabulary.vue'
 import ShortAnswer from '../components/exercises/ShortAnswer.vue'
 
 const router = useRouter()
 const route = useRoute()
 const isEditing = ref(false)
+const isGeneratingTTS = ref({})
 const saving = ref(false)
 const aiLoading = ref(false)
 const aiProvider = ref('gemini')
@@ -1067,6 +1134,15 @@ const addBlock = (type) => {
       baseBlock.url = ''
       baseBlock.label = ''
       break
+    case 'tts_text':
+      baseBlock.points = 0
+      baseBlock.label = 'Read Aloud'
+      baseBlock.text = ''
+      baseBlock.language = 'de-AT'
+      baseBlock.engine = 'cloud'
+      baseBlock.voice = 'de-AT-IngridNeural'
+      baseBlock.url = ''
+      break
     case 'gap_fill':
       baseBlock.instruction = 'Fill in the blanks.'
       baseBlock.template = 'She ((has)) a cat. We ((have)) a dog.'
@@ -1138,7 +1214,7 @@ const addBlock = (type) => {
       break
   }
 
-  if (!['text', 'image', 'audio'].includes(type)) {
+  if (!['text', 'image', 'audio', 'tts_text'].includes(type)) {
     const subjectHint = sheet.value.subject ? `Relate your answer to ${sheet.value.subject}.` : 'Relate your answer to the lesson topic.'
     baseBlock.hints = ['Think about the core concept first.', subjectHint, 'Break the task into smaller steps.']
   }
@@ -1156,6 +1232,86 @@ const moveBlock = (idx, direction) => {
   const temp = sheet.value.blocks[idx]
   sheet.value.blocks[idx] = sheet.value.blocks[targetIdx]
   sheet.value.blocks[targetIdx] = temp
+}
+
+// TTS Audio Generation Helpers
+const getVoicesForLang = (lang) => {
+  switch (lang) {
+    case 'de-AT':
+      return [
+        { value: 'de-AT-IngridNeural', name: 'Ingrid (Female)' },
+        { value: 'de-AT-JonasNeural', name: 'Jonas (Male)' }
+      ]
+    case 'de-DE':
+      return [
+        { value: 'de-DE-KatjaNeural', name: 'Katja (Female)' },
+        { value: 'de-DE-ConradNeural', name: 'Conrad (Male)' },
+        { value: 'de-DE-KillianNeural', name: 'Killian (Male)' }
+      ]
+    case 'en-US':
+      return [
+        { value: 'en-US-JennyNeural', name: 'Jenny (Female)' },
+        { value: 'en-US-GuyNeural', name: 'Guy (Male)' },
+        { value: 'en-US-AriaNeural', name: 'Aria (Female)' }
+      ]
+    case 'en-GB':
+      return [
+        { value: 'en-GB-SoniaNeural', name: 'Sonia (Female)' },
+        { value: 'en-GB-RyanNeural', name: 'Ryan (Male)' },
+        { value: 'en-GB-LibbyNeural', name: 'Libby (Female)' }
+      ]
+    default:
+      return []
+  }
+}
+
+const onLanguageChange = (block) => {
+  const voices = getVoicesForLang(block.language)
+  if (voices.length > 0) {
+    block.voice = voices[0].value
+  } else {
+    block.voice = ''
+  }
+}
+
+const generateTTSAudio = async (block) => {
+  if (!block.text || !block.text.trim()) return
+  
+  isGeneratingTTS.value[block.id] = true
+  const token = localStorage.getItem('token')
+  
+  try {
+    const response = await fetch('/api/worksheets/tts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        text: block.text,
+        language: block.language,
+        engine: block.engine,
+        voice: block.voice
+      })
+    })
+    
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error || 'Failed to generate TTS audio')
+    }
+    
+    const data = await response.json()
+    block.url = data.url
+    
+    // Play preview of the generated audio
+    const audioUrl = data.url.startsWith('http') ? data.url : `${data.url}`
+    const previewAudio = new Audio(audioUrl)
+    previewAudio.play().catch(err => console.log('Audio preview block autoplay prevented:', err))
+  } catch (err) {
+    alert(err.message || 'Error generating TTS audio')
+  } finally {
+    isGeneratingTTS.value[block.id] = false
+  }
 }
 
 // Media upload API handler

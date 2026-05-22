@@ -78,14 +78,26 @@ router.use(requireRole('teacher', 'admin'));
 router.get('/', (req, res) => {
   try {
     const db = getDB();
-    const classes = db.prepare(`
-      SELECT c.*, COUNT(cs.student_id) as student_count
-      FROM classes c
-      LEFT JOIN class_students cs ON cs.class_id = c.id
-      WHERE c.created_by = ?
-      GROUP BY c.id
-      ORDER BY c.name ASC
-    `).all(req.user.userId);
+    let classes;
+    if (req.user.role === 'admin') {
+      classes = db.prepare(`
+        SELECT c.*, COUNT(cs.student_id) as student_count, u.name as teacher_name
+        FROM classes c
+        LEFT JOIN class_students cs ON cs.class_id = c.id
+        LEFT JOIN users u ON u.id = c.created_by
+        GROUP BY c.id
+        ORDER BY c.name ASC
+      `).all();
+    } else {
+      classes = db.prepare(`
+        SELECT c.*, COUNT(cs.student_id) as student_count
+        FROM classes c
+        LEFT JOIN class_students cs ON cs.class_id = c.id
+        WHERE c.created_by = ?
+        GROUP BY c.id
+        ORDER BY c.name ASC
+      `).all(req.user.userId);
+    }
     res.json(classes);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -460,7 +472,7 @@ router.get('/:id/stats', (req, res) => {
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.post('/import-pdf', requireAuth, requireRole(['admin', 'teacher']), upload.single('file'), async (req, res) => {
+router.post('/import-pdf', requireAuth, requireRole('admin', 'teacher'), upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
@@ -469,8 +481,10 @@ router.post('/import-pdf', requireAuth, requireRole(['admin', 'teacher']), uploa
     // Dynamic import for ES module pdf-parse or fallback to exec
     let text = '';
     try {
-      const pdfParse = require('pdf-parse');
-      const data = await pdfParse(req.file.buffer);
+      const { PDFParse } = require('pdf-parse');
+      const parser = new PDFParse({ data: req.file.buffer });
+      const data = await parser.getText();
+      await parser.destroy();
       text = data.text;
     } catch (e) {
       // Fallback if pdf-parse fails due to ES modules or other issues
@@ -542,7 +556,7 @@ router.post('/import-pdf', requireAuth, requireRole(['admin', 'teacher']), uploa
           classId = uuidv4();
           // generate a short 6-char code
           const code = crypto.randomBytes(3).toString('hex').toUpperCase();
-          db.prepare('INSERT INTO classes (id, name, code, created_by) VALUES (?, ?, ?, ?)')
+          db.prepare('INSERT INTO classes (id, name, class_code, created_by) VALUES (?, ?, ?, ?)')
             .run(classId, cls.name, code, req.user.userId);
           results.classesCreated++;
         } else {
@@ -572,9 +586,9 @@ router.post('/import-pdf', requireAuth, requireRole(['admin', 'teacher']), uploa
           }
           
           // Enroll student in class
-          const enrollment = db.prepare('SELECT user_id FROM class_students WHERE class_id = ? AND user_id = ?').get(classId, studentId);
+          const enrollment = db.prepare('SELECT student_id FROM class_students WHERE class_id = ? AND student_id = ?').get(classId, studentId);
           if (!enrollment) {
-            db.prepare('INSERT INTO class_students (class_id, user_id) VALUES (?, ?)').run(classId, studentId);
+            db.prepare('INSERT INTO class_students (class_id, student_id) VALUES (?, ?)').run(classId, studentId);
           }
         }
       }

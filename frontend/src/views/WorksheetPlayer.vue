@@ -124,6 +124,7 @@
           <!-- Static Media/Audio Blocks -->
           <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
           <AudioBlock v-else-if="block.type === 'audio'" v-bind="block" />
+          <ReadAloudBlock v-else-if="block.type === 'tts_text'" v-bind="block" />
         </div>
       </div>
     </div>
@@ -148,6 +149,7 @@ import SingleChoice from '../components/exercises/SingleChoice.vue'
 import Matching from '../components/exercises/Matching.vue'
 import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
+import ReadAloudBlock from '../components/exercises/ReadAloudBlock.vue'
 import Vocabulary from '../components/exercises/Vocabulary.vue'
 import ShortAnswer from '../components/exercises/ShortAnswer.vue'
 import Flashcards from '../components/exercises/Flashcards.vue'

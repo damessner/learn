@@ -1,8 +1,12 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
 const { requireAuth, requireRole } = require('./auth');
 const { generateWorksheetFromAI, generateNeuroVocabCourse } = require('../services/aiWorksheet');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+const say = require('say');
 
 const router = express.Router();
 
@@ -45,6 +49,94 @@ router.post('/ai/neuro-vocab', requireAuth, requireRole('teacher', 'admin'), asy
   } catch (err) {
     const msg = err?.message || 'AI generation failed';
     res.status(500).json({ error: msg });
+  }
+});
+
+// ─── Text to Speech (TTS) Generation ───────────────────────────────────────────
+router.post('/tts', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
+  try {
+    const { text, language, engine, voice } = req.body || {};
+    if (!text || !String(text).trim()) {
+      return res.status(400).json({ error: 'Text content is required' });
+    }
+
+    const ttsText = String(text).trim();
+    const ttsLanguage = language || 'de-AT';
+    const ttsEngine = engine || 'cloud';
+
+    const uploadDir = process.env.UPLOAD_DIR || './uploads';
+    const audioFolder = path.join(uploadDir, 'audio');
+    if (!fs.existsSync(audioFolder)) {
+      fs.mkdirSync(audioFolder, { recursive: true });
+    }
+
+    const fileId = uuidv4();
+
+    if (ttsEngine === 'cloud') {
+      const filename = `tts-${fileId}.mp3`;
+      const outputPath = path.join(audioFolder, filename);
+
+      const tts = new MsEdgeTTS();
+      const format = OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3;
+      
+      const voiceMapping = {
+        'de-AT': 'de-AT-IngridNeural',
+        'de-DE': 'de-DE-KatjaNeural',
+        'en-US': 'en-US-JennyNeural',
+        'en-GB': 'en-GB-SoniaNeural'
+      };
+
+      const selectedVoice = voice || voiceMapping[ttsLanguage] || 'de-AT-IngridNeural';
+      await tts.setMetadata(selectedVoice, format);
+
+      const { audioStream } = tts.toStream(ttsText);
+      const writeStream = fs.createWriteStream(outputPath);
+
+      audioStream.pipe(writeStream);
+
+      await new Promise((resolve, reject) => {
+        writeStream.on('finish', resolve);
+        writeStream.on('error', reject);
+        audioStream.on('error', reject);
+      });
+
+      const stats = fs.statSync(outputPath);
+      const fileUrl = `/uploads/audio/${filename}`;
+
+      const db = getDB();
+      const mediaId = uuidv4();
+      db.prepare(`
+        INSERT INTO media_files (id, filename, original_name, mime_type, size_bytes, uploaded_by, url)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(mediaId, filename, `TTS (${ttsLanguage}) - ${ttsText.substring(0, 30)}...`, 'audio/mpeg', stats.size, req.user.userId || null, fileUrl);
+
+      return res.json({ url: fileUrl });
+    } else {
+      const filename = `tts-${fileId}.wav`;
+      const outputPath = path.join(audioFolder, filename);
+
+      await new Promise((resolve, reject) => {
+        say.export(ttsText, null, 1.0, outputPath, (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
+
+      const stats = fs.statSync(outputPath);
+      const fileUrl = `/uploads/audio/${filename}`;
+
+      const db = getDB();
+      const mediaId = uuidv4();
+      db.prepare(`
+        INSERT INTO media_files (id, filename, original_name, mime_type, size_bytes, uploaded_by, url)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(mediaId, filename, `TTS Local (${ttsLanguage}) - ${ttsText.substring(0, 30)}...`, 'audio/wav', stats.size, req.user.userId || null, fileUrl);
+
+      return res.json({ url: fileUrl });
+    }
+  } catch (err) {
+    console.error('[TTS ERROR]', err);
+    res.status(500).json({ error: err.message || 'Text-to-speech generation failed' });
   }
 });
 

@@ -55,7 +55,7 @@ const SYSTEM_PROMPT = [
   'For matching use pairs as [["left","right"]].',
   'For vocabulary use pairs as [{"l":"EnglishWord","r":"GermanWord"}], direction as "l2r", "r2l", or "mixed", and rawText as string of "English = German" lines.',
   'For short_answer use prompt, optional sample_answer, optional keywords array, and points.',
-  'For STEM subjects (Maths, Physics, Chemistry, etc.): always wrap mathematical expressions, equations, and formulas in standard LaTeX delimiters ($...$ for inline, $$...$$ for block presentation). Make sure scientific notation and units are clear (e.g. use $1.5 \\times 10^3$ in text, or using e-notation in correct answers like "1.5e3"). Supply valid numeric units when applicable (e.g. "10 m/s^2", "5.4 kg", "3e8 m/s") so the STEM-aware grading engine can evaluate them accurately.'
+  'For STEM subjects (Maths, Physics, Chemistry, etc.): always wrap mathematical expressions, equations, and formulas in standard LaTeX delimiters ($...$ for inline, $$...$$ for block presentation). Make sure scientific notation and units are clear (e.g. use $1.5 \\times 10^3$ in text, or using e-notation in correct answers like "1.5e3"). Supply valid numeric units when applicable (e.g. "10 m/s^2", "5.4 kg", "3e8 m/s") so the STEM-aware grading engine can evaluate them accurately.',
 
   'For semantic_sorter use categories as [{"name":"CategoryName","words":["word1","word2"]}].',
   'For contextual_dialogue use messages as [{"sender":"teacher","isGap":false,"text":"Hello"},{"sender":"student","isGap":true,"textBefore":"I am ","textAfter":".","answer":"good"}].',
