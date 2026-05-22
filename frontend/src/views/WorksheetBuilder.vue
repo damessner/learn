@@ -16,7 +16,7 @@
 
     <div class="builder-layout" :class="{ 'left-collapsed': !leftExpanded, 'right-collapsed': !rightExpanded }">
       <!-- Left Column: Block Toolbox -->
-      <div class="sidebar-panel card toolbox-panel" :class="{ collapsed: !leftExpanded }" @click="if (!leftExpanded) leftExpanded = true">
+      <div class="sidebar-panel card toolbox-panel" :class="{ collapsed: !leftExpanded }" @click="!leftExpanded && (leftExpanded = true)">
         <div class="panel-header-toggle">
           <h3 v-if="leftExpanded" class="panel-title">🛠️ Toolbox</h3>
           <button class="btn-collapse" @click.stop="leftExpanded = !leftExpanded" :title="leftExpanded ? 'Collapse Panel' : 'Expand Panel'">
@@ -453,9 +453,9 @@
       </div>
 
       <!-- Right Column: Settings, STEM, AI Copilot -->
-      <div class="sidebar-panel card settings-panel" :class="{ collapsed: !rightExpanded }" @click="if (!rightExpanded) rightExpanded = true">
+      <div class="sidebar-panel card settings-panel" :class="{ collapsed: !rightExpanded }" @click="!rightExpanded && (rightExpanded = true)">
         <div class="panel-header-toggle">
-          <h3 v-if="rightExpanded" class="panel-title">⚙️ Document</h3>
+          <h3 v-if="rightExpanded" class="panel-title">⚙️ Document Settings</h3>
           <button class="btn-collapse" @click.stop="rightExpanded = !rightExpanded" :title="rightExpanded ? 'Collapse Panel' : 'Expand Panel'">
             {{ rightExpanded ? '▶' : '◀' }}
           </button>
@@ -2061,7 +2061,7 @@ const submitLocalPreview = () => {
 
 <style scoped>
 .worksheet-builder {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto 100px auto;
 }
 
@@ -2101,17 +2101,125 @@ const submitLocalPreview = () => {
 
 .builder-layout {
   display: grid;
-  grid-template-columns: 350px 1fr;
-  gap: 24px;
+  grid-template-columns: 280px minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+  transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.builder-layout.left-collapsed {
+  grid-template-columns: 70px minmax(0, 1fr) 320px;
+}
+
+.builder-layout.right-collapsed {
+  grid-template-columns: 280px minmax(0, 1fr) 70px;
+}
+
+.builder-layout.left-collapsed.right-collapsed {
+  grid-template-columns: 70px minmax(0, 1fr) 70px;
 }
 
 .sidebar-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   height: fit-content;
   position: sticky;
   top: 170px;
+  transition: width 0.3s ease, padding 0.3s ease;
+}
+
+.toolbox-panel {
+  min-width: 0;
+}
+
+.settings-panel {
+  min-width: 0;
+}
+
+.panel-header-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.btn-collapse {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-main);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: none;
+}
+
+.btn-collapse:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.toolbox-panel.collapsed,
+.settings-panel.collapsed {
+  padding-left: 10px;
+  padding-right: 10px;
+  cursor: pointer;
+}
+
+.toolbox-content.is-collapsed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.toolbox-content.is-collapsed .block-buttons-grid {
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+
+.toolbox-content.is-collapsed .btn-add-block {
+  justify-content: center;
+  padding: 10px 6px;
+}
+
+.toolbox-content.is-collapsed .btn-icon {
+  font-size: 18px;
+}
+
+.panel-collapsed-icons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.collapsed-icon-group {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: var(--bg-main);
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .form-group-row {
@@ -3070,5 +3178,49 @@ const submitLocalPreview = () => {
   background: rgba(99, 102, 241, 0.1);
   border-color: var(--primary);
   transform: translateY(-1px);
+}
+
+@media (max-width: 1320px) {
+  .builder-layout {
+    grid-template-columns: 250px minmax(0, 1fr) 300px;
+  }
+
+  .builder-layout.left-collapsed {
+    grid-template-columns: 64px minmax(0, 1fr) 300px;
+  }
+
+  .builder-layout.right-collapsed {
+    grid-template-columns: 250px minmax(0, 1fr) 64px;
+  }
+
+  .builder-layout.left-collapsed.right-collapsed {
+    grid-template-columns: 64px minmax(0, 1fr) 64px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .builder-layout,
+  .builder-layout.left-collapsed,
+  .builder-layout.right-collapsed,
+  .builder-layout.left-collapsed.right-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-panel {
+    position: static;
+    top: auto;
+  }
+
+  .toolbox-panel {
+    order: 1;
+  }
+
+  .main-preview-panel {
+    order: 2;
+  }
+
+  .settings-panel {
+    order: 3;
+  }
 }
 </style>
