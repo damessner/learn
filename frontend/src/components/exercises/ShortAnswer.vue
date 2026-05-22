@@ -18,6 +18,9 @@
       <p><strong>Length signal:</strong> {{ feedback.aiFeedback.automatedLengthSignal }}</p>
       <p><strong>Key points:</strong> {{ feedback.aiFeedback.keyPointsCoverage }}</p>
     </div>
+    <div v-if="isGraded && explanation" class="explanation-box">
+      <strong>Explanation:</strong> {{ explanation }}
+    </div>
   </div>
 </template>
 
@@ -30,7 +33,8 @@ const props = defineProps({
   instruction: { type: String, default: '' },
   points: { type: Number, default: 0 },
   disabled: { type: Boolean, default: false },
-  feedback: { type: Object, default: null }
+  feedback: { type: Object, default: null },
+  explanation: String
 })
 
 defineEmits(['update:modelValue'])
@@ -39,6 +43,8 @@ const stateClass = computed(() => {
   if (!props.feedback) return ''
   return props.feedback.correct ? 'correct' : 'incorrect'
 })
+
+const isGraded = computed(() => !!props.feedback)
 </script>
 
 <style scoped>

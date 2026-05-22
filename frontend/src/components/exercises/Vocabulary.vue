@@ -112,6 +112,10 @@
           Download Certificate 🏆
         </button>
       </div>
+
+      <div v-if="isGraded && explanation" class="explanation-box" style="width: 100%; max-width: 500px; text-align: left; margin-top: 24px;">
+        <strong>Explanation:</strong> {{ explanation }}
+      </div>
     </div>
   </div>
 </template>
@@ -136,8 +140,11 @@ const props = defineProps({
   modelValue: {
     type: Object,
     default: () => ({})
-  }
+  },
+  explanation: String
 })
+
+const isGraded = computed(() => !!props.feedback)
 
 const emit = defineEmits(['update:modelValue'])
 

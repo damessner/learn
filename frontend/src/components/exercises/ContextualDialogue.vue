@@ -37,6 +37,9 @@
         </div>
       </div>
     </div>
+    <div v-if="isGraded && explanation" class="explanation-box">
+      <strong>Explanation:</strong> {{ explanation }}
+    </div>
   </div>
 </template>
 
@@ -59,7 +62,8 @@ const props = defineProps({
     default: () => ({}) // { "1": "good" }
   },
   disabled: Boolean,
-  feedback: Object
+  feedback: Object,
+  explanation: String
 })
 
 const emit = defineEmits(['update:modelValue'])

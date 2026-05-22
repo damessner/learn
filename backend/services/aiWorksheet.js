@@ -45,9 +45,14 @@ const ALLOWED_BLOCK_TYPES = new Set([
 const SYSTEM_PROMPT = [
   'You generate compact worksheet JSON for LearnFlow.',
   'Return ONLY valid JSON with shape: {"title":"","description":"","subject":"","grade_level":"","content":{"blocks":[...]}}.',
-  'Keep token use low: concise text, avoid explanations.',
-  'Use only block types: text,image,audio,gap_fill,drag_drop,multiple_choice,single_choice,matching,vocabulary,short_answer.',
-  'Every block must include id and type; question blocks include points integer.',
+  'Use only block types: text,image,audio,gap_fill,drag_drop,multiple_choice,single_choice,matching,vocabulary,short_answer,semantic_sorter,contextual_dialogue,word_scramble,flow_challenge.',
+  'Every block must include id and type; question blocks include points integer and a clear, helpful explanation string.',
+  'Always follow these core pedagogical principles:',
+  '1. Cohesive Story/Theme: Weave a single scenario, theme, or narrative throughout all text and questions in the worksheet to make it a unified learning journey.',
+  '2. Scaffolded Difficulty: Order the blocks from easiest (DOK 1) to hardest (DOK 3). Begin with an introduction/static text, then move to recognition questions, then application exercises, and conclude with strategic/short answer blocks.',
+  '3. Smart Distractors: For multiple_choice and single_choice, design incorrect options that reflect common student misconceptions or errors, rather than obvious nonsense.',
+  '4. Webb\'s DOK Balance: Target a pyramid of cognitive demand: ~40% DOK 1 Recall (e.g., multiple_choice, single_choice, matching), ~40% DOK 2 Skills & Concepts (e.g., gap_fill, drag_drop, semantic_sorter), and ~20% DOK 3 Strategic Thinking (e.g., short_answer, contextual_dialogue).',
+  '5. Educational Explanations: Every interactive question block MUST have an "explanation" string explaining why the answer is correct and providing a key learning tip.',
   'For gap_fill use "template" with ((answer)) format — double parentheses around each correct answer (e.g. "She ((has)) eaten. We ((have)) slept.").',
   'For drag_drop use items[], targets[], answers object index->answer. In targets, mark each drop zone with ((word)) (e.g. "She ((has)) eaten.").',
   'For multiple_choice use options[] and correct[] indexes.',
@@ -55,11 +60,11 @@ const SYSTEM_PROMPT = [
   'For matching use pairs as [["left","right"]].',
   'For vocabulary use pairs as [{"l":"EnglishWord","r":"GermanWord"}], direction as "l2r", "r2l", or "mixed", and rawText as string of "English = German" lines.',
   'For short_answer use prompt, optional sample_answer, optional keywords array, and points.',
-  'For STEM subjects (Maths, Physics, Chemistry, etc.): always wrap mathematical expressions, equations, and formulas in standard LaTeX delimiters ($...$ for inline, $$...$$ for block presentation). Make sure scientific notation and units are clear (e.g. use $1.5 \\times 10^3$ in text, or using e-notation in correct answers like "1.5e3"). Supply valid numeric units when applicable (e.g. "10 m/s^2", "5.4 kg", "3e8 m/s") so the STEM-aware grading engine can evaluate them accurately.',
-
   'For semantic_sorter use categories as [{"name":"CategoryName","words":["word1","word2"]}].',
   'For contextual_dialogue use messages as [{"sender":"teacher","isGap":false,"text":"Hello"},{"sender":"student","isGap":true,"textBefore":"I am ","textAfter":".","answer":"good"}].',
-  'For flow_challenge use pairs exactly like vocabulary.'
+  'For flow_challenge use pairs exactly like vocabulary.',
+  'For word_scramble use words as [{"word":"apple","clue":"A red fruit"}].',
+  'For STEM subjects (Maths, Physics, Chemistry, etc.): always wrap mathematical expressions, equations, and formulas in standard LaTeX delimiters ($...$ for inline, $$...$$ for block presentation). Make sure scientific notation and units are clear (e.g. use $1.5 \\times 10^3$ in text, or using e-notation in correct answers like "1.5e3"). Supply valid numeric units when applicable (e.g. "10 m/s^2", "5.4 kg", "3e8 m/s") so the STEM-aware grading engine can evaluate them accurately.'
 ].join(' ');
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
@@ -107,6 +112,9 @@ function sanitizeBlock(block, index) {
 
   if (!['text', 'image', 'audio'].includes(block.type)) {
     safe.points = clampPoints(block.points);
+    if (block.explanation) {
+      safe.explanation = asText(block.explanation);
+    }
   }
 
   if (block.type === 'text') safe.content = asText(block.content);
@@ -164,6 +172,72 @@ function sanitizeBlock(block, index) {
     safe.prompt = asText(block.prompt, 'Write a short answer.');
     safe.sample_answer = asText(block.sample_answer, '');
     safe.keywords = Array.isArray(block.keywords) ? block.keywords.map(v => asText(v)).filter(Boolean).slice(0, 10) : [];
+  }
+  if (block.type === 'semantic_sorter') {
+    safe.instruction = asText(block.instruction, 'Sort the words into their correct semantic categories.');
+    safe.categories = Array.isArray(block.categories)
+      ? block.categories
+        .filter(c => c && typeof c === 'object')
+        .map(c => ({
+          name: asText(c.name),
+          words: Array.isArray(c.words) ? c.words.map(w => asText(w)).filter(Boolean) : []
+        }))
+        .filter(c => c.name && c.words.length > 0)
+      : [];
+  }
+  if (block.type === 'contextual_dialogue') {
+    safe.instruction = asText(block.instruction, 'Complete the conversation by filling in the missing words.');
+    safe.messages = Array.isArray(block.messages)
+      ? block.messages
+        .filter(m => m && typeof m === 'object')
+        .map(m => ({
+          sender: ['teacher', 'student'].includes(m.sender) ? m.sender : 'teacher',
+          isGap: !!m.isGap,
+          text: asText(m.text),
+          textBefore: asText(m.textBefore),
+          textAfter: asText(m.textAfter),
+          answer: asText(m.answer)
+        }))
+      : [];
+  }
+  if (block.type === 'word_scramble') {
+    safe.instruction = asText(block.instruction, 'Unscramble the letters to form the correct word.');
+    safe.words = Array.isArray(block.words)
+      ? block.words
+        .filter(w => w && typeof w === 'object')
+        .map(w => ({
+          word: asText(w.word),
+          clue: asText(w.clue)
+        }))
+        .filter(w => w.word)
+      : [];
+  }
+  if (block.type === 'flow_challenge') {
+    safe.instruction = asText(block.instruction, 'Match the terms in flow challenge.');
+    safe.pairs = Array.isArray(block.pairs)
+      ? block.pairs
+        .filter(p => p && typeof p === 'object')
+        .map(p => ({ l: asText(p.l), r: asText(p.r) }))
+        .filter(p => p.l && p.r)
+      : [];
+  }
+  if (block.type === 'flashcards') {
+    safe.instruction = asText(block.instruction, 'Review the flashcards.');
+    safe.cards = Array.isArray(block.cards)
+      ? block.cards
+        .filter(c => c && typeof c === 'object')
+        .map(c => ({ front: asText(c.front), back: asText(c.back) }))
+        .filter(c => c.front && c.back)
+      : [];
+  }
+  if (block.type === 'memory_match') {
+    safe.instruction = asText(block.instruction, 'Match the cards.');
+    safe.pairs = Array.isArray(block.pairs)
+      ? block.pairs
+        .filter(p => p && typeof p === 'object')
+        .map(p => ({ l: asText(p.l), r: asText(p.r) }))
+        .filter(p => p.l && p.r)
+      : [];
   }
 
   return safe;
