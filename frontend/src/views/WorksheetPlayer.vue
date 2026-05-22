@@ -46,7 +46,7 @@
             :disabled="submitting" 
             class="btn btn-primary"
           >
-            Submit Task 🚀
+            {{ redoMode ? 'Submit Retry 🚀' : 'Submit Task 🚀' }}
           </button>
           <router-link v-else to="/student" class="btn btn-secondary">
             Return to Dashboard
@@ -66,6 +66,8 @@
           <div class="progress-fill" :style="{ width: `${feedbackSummary.percentage}%` }"></div>
         </div>
         <p class="review-note">You can review your correct and incorrect answers below.</p>
+        <p v-if="feedbackSummary.attemptNo" class="review-note">Attempt {{ feedbackSummary.attemptNo }}</p>
+        <p v-if="feedbackSummary.retryPolicy === 'incorrect_half'" class="review-note">Retry mode: newly earned points are halved.</p>
 
         <!-- Star rating widget (student rates the worksheet after submission) -->
         <div class="rating-section no-print">
@@ -88,6 +90,9 @@
         <div class="review-toggle no-print">
           <button @click="showReview = !showReview" class="btn btn-secondary">
             {{ showReview ? 'Hide Review' : 'Review Answers' }}
+          </button>
+          <button v-if="canRetryIncorrect" @click="startIncorrectRetry" class="btn btn-primary" style="margin-left:8px;">
+            Redo Incorrect (½ points)
           </button>
         </div>
       </div>
@@ -130,7 +135,7 @@
             v-model="answers[block.id]"
             :id="block.id"
             v-bind="block"
-            :disabled="isSubmitted"
+            :disabled="isBlockDisabled(block)"
             :feedback="feedbackSummary?.feedback?.[block.id]"
             :correctAnswers="getCorrectAnswerData(block)"
             :correctAnswer="getSingleCorrectAnswerData(block)"
@@ -148,7 +153,8 @@
             v-else-if="block.type === 'video'"
             v-bind="block"
             v-model="answers[block.id]"
-            :disabled="isSubmitted"
+            :disabled="isBlockDisabled(block)"
+            :feedback="feedbackSummary?.feedback?.[block.id]"
           />
         </div>
       </div>
@@ -165,7 +171,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import GapFill from '../components/exercises/GapFill.vue'
 import DragDrop from '../components/exercises/DragDrop.vue'
@@ -199,6 +205,10 @@ const showScratchpad = ref(false)
 const isSubmitted = ref(false)
 const feedbackSummary = ref(null)
 const showReview = ref(false)
+const redoMode = ref(false)
+const retryPolicy = ref('single')
+const maxAttempts = ref(1)
+const attemptsRemaining = ref(0)
 const preferredLanguage = ref(localStorage.getItem('preferredLanguage') || 'en-US')
 const parseStoredBoolean = (value, fallback = false) => {
   if (value === null || value === undefined) return fallback
@@ -263,7 +273,7 @@ const fetchWorksheet = async () => {
     // 3. Initialize answers object
     const initialAnswers = {}
     wsData.content.blocks.forEach(block => {
-      if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary', 'flashcards', 'memory_match', 'word_scramble', 'semantic_sorter', 'contextual_dialogue', 'flow_challenge'].includes(block.type)) {
+      if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary', 'flashcards', 'memory_match', 'word_scramble', 'semantic_sorter', 'contextual_dialogue', 'flow_challenge', 'video'].includes(block.type)) {
         // Init matching structure
         if (block.type === 'multiple_choice') {
           initialAnswers[block.id] = []
@@ -288,11 +298,17 @@ const fetchWorksheet = async () => {
       if (block.type === 'short_answer') {
         initialAnswers[block.id] = ''
       }
+      if (block.type === 'video') {
+        initialAnswers[block.id] = []
+      }
       hintLevel.value[block.id] = 0
     })
 
     if (submission) {
       answers.value = { ...initialAnswers, ...submission.answers }
+      retryPolicy.value = submission.retryPolicy || 'single'
+      maxAttempts.value = Number(submission.maxAttempts) || 1
+      attemptsRemaining.value = Number(submission.attemptsRemaining) || 0
       if (submission.submitted_at) {
         isSubmitted.value = true
         // Build summary from stored submission data (score/max_score are already persisted)
@@ -302,7 +318,10 @@ const fetchWorksheet = async () => {
           score,
           maxScore,
           percentage: maxScore > 0 ? Math.round((score / maxScore) * 100) : 0,
-          feedback: {}
+          feedback: submission.latestAttempt?.feedback || {},
+          attemptNo: submission.latestAttempt?.attempt_no || submission.attempts?.length || 1,
+          retryPolicy: retryPolicy.value,
+          attemptsRemaining: attemptsRemaining.value
         }
       }
     } else {
@@ -326,7 +345,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (autosaveTimer) clearInterval(autosaveTimer)
+  if (autosaveTimer) {
+    clearInterval(autosaveTimer)
+    autosaveTimer = null
+  }
   window.removeEventListener('online', flushOfflineSaves)
 })
 
@@ -389,6 +411,28 @@ const flushOfflineSaves = async () => {
   localStorage.setItem(OFFLINE_SAVE_KEY, JSON.stringify(remaining))
 }
 
+const incorrectBlockIds = computed(() => {
+  if (!feedbackSummary.value?.feedback) return new Set()
+  return new Set(
+    Object.entries(feedbackSummary.value.feedback)
+      .filter(([, fb]) => fb && fb.correct === false)
+      .map(([id]) => id)
+  )
+})
+
+const canRetryIncorrect = computed(() => {
+  return isSubmitted.value
+    && retryPolicy.value === 'incorrect_half'
+    && (attemptsRemaining.value || 0) > 0
+    && incorrectBlockIds.value.size > 0
+})
+
+const isBlockDisabled = (block) => {
+  if (isSubmitted.value) return true
+  if (!redoMode.value) return false
+  return !incorrectBlockIds.value.has(block.id)
+}
+
 // Watch answers change and save progress
 watch(answers, () => {
   // We can let the interval handle auto-saving to prevent server hammering.
@@ -398,8 +442,22 @@ watch(preferredLanguage, (lang) => {
   localStorage.setItem('preferredLanguage', lang)
 })
 
+const startIncorrectRetry = () => {
+  if (!canRetryIncorrect.value) return
+  redoMode.value = true
+  isSubmitted.value = false
+  showReview.value = false
+  if (!autosaveTimer) {
+    autosaveTimer = setInterval(autoSave, 20000)
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 const submitWorksheet = async () => {
-  if (!confirm('Are you sure you want to submit your worksheet? You cannot make changes afterwards.')) return
+  const confirmMessage = redoMode.value
+    ? 'Submit your retry attempt for the previously incorrect answers?'
+    : 'Are you sure you want to submit your worksheet? You cannot make changes afterwards.'
+  if (!confirm(confirmMessage)) return
   
   if (autosaveTimer) clearInterval(autosaveTimer)
   submitting.value = true
@@ -415,11 +473,18 @@ const submitWorksheet = async () => {
       },
       body: JSON.stringify({ answers: answers.value })
     })
-    if (!resp.ok) throw new Error('Submission failed')
-
     const data = await resp.json()
+    if (!resp.ok) throw new Error(data.error || 'Submission failed')
+
     feedbackSummary.value = data
+    retryPolicy.value = data.retryPolicy || retryPolicy.value
+    attemptsRemaining.value = Number(data.attemptsRemaining) || 0
+    redoMode.value = false
     isSubmitted.value = true
+    if (autosaveTimer) {
+      clearInterval(autosaveTimer)
+      autosaveTimer = null
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (err) {
     alert(err.message)

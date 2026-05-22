@@ -934,6 +934,7 @@
               <option value="best">Keep best score</option>
               <option value="latest">Use latest score</option>
               <option value="capped">Capped attempts</option>
+              <option value="incorrect_half">Redo wrong answers (half points gained)</option>
             </select>
           </div>
           <div class="form-group" v-if="assignForm.retry_policy === 'capped'">

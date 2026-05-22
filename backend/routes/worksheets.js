@@ -368,6 +368,25 @@ router.get('/:id', requireAuth, (req, res) => {
       if (block.type === 'short_answer') {
         delete stripped.sample_answer;
       }
+      if (block.type === 'video') {
+        const safeQuestions = Array.isArray(block.questions) ? block.questions.map(question => {
+          const q = { ...question };
+          q.type = q.type || 'short_answer';
+          q.timeSeconds = Number.isFinite(Number(q.timeSeconds)) ? Math.max(0, Number(q.timeSeconds)) : null;
+          if (q.type === 'single_choice' || q.type === 'multiple_choice') {
+            delete q.correct;
+          }
+          if (q.type === 'short_answer') {
+            delete q.sample_answer;
+          }
+          if (q.type === 'gap_fill' && typeof q.template === 'string') {
+            q.template_display = q.template.replace(/\(\([^)]+\)\)/g, '____');
+            delete q.template;
+          }
+          return q;
+        }) : [];
+        stripped.questions = safeQuestions;
+      }
       return stripped;
     });
     worksheet.content = JSON.stringify(content);
@@ -513,7 +532,7 @@ router.post('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (r
     class_id || null,
     due_date || null,
     req.user.userId,
-    ['single', 'best', 'latest', 'capped'].includes(retry_policy) ? retry_policy : 'single',
+    ['single', 'best', 'latest', 'capped', 'incorrect_half'].includes(retry_policy) ? retry_policy : 'single',
     Number.isFinite(Number(max_attempts)) ? Math.max(1, Number(max_attempts)) : 1,
     peer_review_enabled ? 1 : 0,
     adaptive_difficulty || 'auto'

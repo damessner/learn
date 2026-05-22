@@ -228,12 +228,63 @@
                 <span class="field-hint">Paste any YouTube link: youtube.com/watch?v=..., youtu.be/..., or youtube.com/embed/...</span>
                 <input type="text" v-model="block.caption" placeholder="Optional caption..." class="mt-2 mb-3" />
 
-                <label>Comprehension Questions (optional)</label>
-                <div v-for="(q, qIdx) in (block.questions || [])" :key="qIdx" class="pair-editor-row mb-2">
-                  <input type="text" v-model="block.questions[qIdx].text" placeholder="Question text" />
-                  <button @click="block.questions.splice(qIdx, 1)" class="btn-sm btn-danger">×</button>
+                <div class="row-between mb-2">
+                  <label>Timed Questions (optional)</label>
+                  <div class="points-input">
+                    Points: <input type="number" :value="block.points || 0" disabled />
+                  </div>
                 </div>
-                <button @click="block.questions = [...(block.questions || []), { text: '' }]" class="btn btn-secondary btn-sm">
+                <div v-for="(q, qIdx) in (block.questions || [])" :key="qIdx" class="pair-editor-row mb-2">
+                  <div style="display:flex;flex-direction:column;gap:8px;flex:1">
+                    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 80px;gap:8px;align-items:center">
+                      <input type="text" v-model="block.questions[qIdx].text" placeholder="Question text" @input="normalizeVideoQuestion(block, qIdx)" />
+                      <select v-model="block.questions[qIdx].type" @change="normalizeVideoQuestion(block, qIdx)">
+                        <option value="short_answer">Short Answer</option>
+                        <option value="single_choice">Single Choice</option>
+                        <option value="multiple_choice">Multiple Choice</option>
+                        <option value="gap_fill">Gap Fill ((answer))</option>
+                      </select>
+                      <input type="number" min="0" step="1" v-model.number="block.questions[qIdx].timeSeconds" @input="normalizeVideoQuestion(block, qIdx)" placeholder="Pause at (s)" />
+                      <input type="number" min="1" step="1" v-model.number="block.questions[qIdx].points" @input="recalculateVideoBlockPoints(block)" title="Question points" />
+                    </div>
+                    <div v-if="block.questions[qIdx].type === 'single_choice' || block.questions[qIdx].type === 'multiple_choice'">
+                      <div v-for="(opt, oIdx) in (block.questions[qIdx].options || [])" :key="oIdx" class="option-editor-row mb-2">
+                        <input
+                          v-if="block.questions[qIdx].type === 'multiple_choice'"
+                          type="checkbox"
+                          :checked="Array.isArray(block.questions[qIdx].correct) && block.questions[qIdx].correct.includes(oIdx)"
+                          @change="toggleVideoMcCorrect(block, qIdx, oIdx)"
+                        />
+                        <input
+                          v-else
+                          type="radio"
+                          :name="`video-sc-${block.id}-${qIdx}`"
+                          :checked="block.questions[qIdx].correct === oIdx"
+                          @change="block.questions[qIdx].correct = oIdx"
+                        />
+                        <input type="text" v-model="block.questions[qIdx].options[oIdx]" placeholder="Option text" />
+                        <button @click="removeVideoOption(block, qIdx, oIdx)" class="btn-sm btn-danger">×</button>
+                      </div>
+                      <button @click="addVideoOption(block, qIdx)" class="btn btn-secondary btn-sm">＋ Add Option</button>
+                    </div>
+                    <textarea
+                      v-if="block.questions[qIdx].type === 'gap_fill'"
+                      v-model="block.questions[qIdx].template"
+                      @input="normalizeVideoQuestion(block, qIdx)"
+                      placeholder="e.g. She ((has gone)) to school already."
+                      rows="2"
+                    ></textarea>
+                    <input
+                      v-if="block.questions[qIdx].type === 'short_answer'"
+                      type="text"
+                      v-model="block.questions[qIdx].sample_answer"
+                      @input="normalizeVideoQuestion(block, qIdx)"
+                      placeholder="Optional expected answer for grading"
+                    />
+                  </div>
+                  <button @click="removeVideoQuestion(block, qIdx)" class="btn-sm btn-danger">×</button>
+                </div>
+                <button @click="addVideoQuestion(block)" class="btn btn-secondary btn-sm">
                   ＋ Add Question
                 </button>
               </div>
@@ -319,7 +370,7 @@
                 ></textarea>
                 <span class="field-hint">Student sees: She ______ to school already. Correct answer is "has gone".</span>
                 <div v-if="block.template && (block.template.includes('$') || block.template.includes('(('))" class="math-preview mt-2">
-                  <span class="preview-label">✨ Math Template Live Preview:</span>
+                  <span class="preview-label">✨ Template Live Preview:</span>
                   <div class="preview-box" v-math="getGapFillPreview(block.template)"></div>
                 </div>
               </div>
@@ -1351,13 +1402,13 @@ const addBlock = (type) => {
       break
     case 'gap_fill':
       baseBlock.instruction = 'Fill in the blanks.'
-      baseBlock.template = 'She ((has)) a cat. We ((have)) a dog.'
+      baseBlock.template = 'She ((has gone)) to school already.'
       break
     case 'drag_drop':
       baseBlock.instruction = 'Drag the words to correct gaps.'
-      baseBlock.items = ['have', 'has']
-      baseBlock.targets = ['We ((have)) a dog.', 'She ((has)) a cat.']
-      baseBlock.answers = { '0': 'have', '1': 'has' }
+      baseBlock.items = ['has gone', 'have gone']
+      baseBlock.targets = ['She ((has gone)) to school already.', 'They ((have gone)) to school already.']
+      baseBlock.answers = { '0': 'has gone', '1': 'have gone' }
       break
     case 'multiple_choice':
       baseBlock.instruction = 'Select all correct answers.'
@@ -1444,6 +1495,19 @@ const moveBlock = (idx, direction) => {
   const temp = sheet.value.blocks[idx]
   sheet.value.blocks[idx] = sheet.value.blocks[targetIdx]
   sheet.value.blocks[targetIdx] = temp
+}
+
+const normalizeBlockForEditing = (block) => {
+  if (block.type === 'video') {
+    block.questions = Array.isArray(block.questions) ? block.questions : []
+    block.questions.forEach((_, idx) => normalizeVideoQuestion(block, idx))
+    recalculateVideoBlockPoints(block)
+  }
+  return block
+}
+
+const normalizeBlocksForEditing = (blocks) => {
+  return (Array.isArray(blocks) ? blocks : []).map(block => normalizeBlockForEditing(block))
 }
 
 // TTS Audio Generation Helpers
@@ -1590,6 +1654,76 @@ const removeOption = (block, idx) => {
   } else if (block.type === 'single_choice' && block.correct === idx) {
     block.correct = 0
   }
+}
+
+const recalculateVideoBlockPoints = (block) => {
+  const questions = Array.isArray(block.questions) ? block.questions : []
+  block.points = questions.reduce((sum, q) => sum + (Number(q?.points) || 1), 0)
+}
+
+const normalizeVideoQuestion = (block, qIdx) => {
+  const q = block.questions?.[qIdx]
+  if (!q) return
+  q.type = q.type || 'short_answer'
+  q.points = Math.max(1, Number(q.points) || 1)
+  q.timeSeconds = Number.isFinite(Number(q.timeSeconds)) ? Math.max(0, Number(q.timeSeconds)) : null
+  if (q.type === 'multiple_choice') {
+    q.options = Array.isArray(q.options) && q.options.length ? q.options : ['', '']
+    q.correct = Array.isArray(q.correct) ? q.correct : []
+  } else if (q.type === 'single_choice') {
+    q.options = Array.isArray(q.options) && q.options.length ? q.options : ['', '']
+    q.correct = Number.isFinite(Number(q.correct)) ? Number(q.correct) : 0
+  } else if (q.type === 'gap_fill') {
+    q.template = q.template || q.text || ''
+  } else {
+    q.sample_answer = q.sample_answer || ''
+  }
+  recalculateVideoBlockPoints(block)
+}
+
+const addVideoQuestion = (block) => {
+  if (!Array.isArray(block.questions)) block.questions = []
+  block.questions.push({
+    text: '',
+    type: 'short_answer',
+    timeSeconds: null,
+    points: 1,
+    sample_answer: ''
+  })
+  normalizeVideoQuestion(block, block.questions.length - 1)
+}
+
+const removeVideoQuestion = (block, qIdx) => {
+  if (!Array.isArray(block.questions)) return
+  block.questions.splice(qIdx, 1)
+  recalculateVideoBlockPoints(block)
+}
+
+const addVideoOption = (block, qIdx) => {
+  const q = block.questions?.[qIdx]
+  if (!q) return
+  q.options = Array.isArray(q.options) ? q.options : []
+  q.options.push('')
+}
+
+const removeVideoOption = (block, qIdx, oIdx) => {
+  const q = block.questions?.[qIdx]
+  if (!q || !Array.isArray(q.options)) return
+  q.options.splice(oIdx, 1)
+  if (q.type === 'multiple_choice') {
+    q.correct = (q.correct || []).filter(idx => idx !== oIdx).map(idx => idx > oIdx ? idx - 1 : idx)
+  } else if (q.type === 'single_choice' && q.correct === oIdx) {
+    q.correct = 0
+  }
+}
+
+const toggleVideoMcCorrect = (block, qIdx, oIdx) => {
+  const q = block.questions?.[qIdx]
+  if (!q) return
+  q.correct = Array.isArray(q.correct) ? q.correct : []
+  const pos = q.correct.indexOf(oIdx)
+  if (pos > -1) q.correct.splice(pos, 1)
+  else q.correct.push(oIdx)
 }
 
 // Matching pairs utilities
@@ -1743,7 +1877,7 @@ const generateVocabCourse = async () => {
       const data = await resp.json()
       if (!resp.ok) throw new Error(data?.error || 'AI generation failed')
       
-      sheet.value.blocks = data.blocks || []
+      sheet.value.blocks = normalizeBlocksForEditing(data.blocks || [])
       showStartWizard.value = false
     } catch (err) {
       alert(err.message)
@@ -1860,7 +1994,7 @@ const generateFromWizard = async () => {
     sheet.value.description = data.description || sheet.value.description
     sheet.value.subject = data.subject || sheet.value.subject
     sheet.value.grade_level = data.grade_level || sheet.value.grade_level
-    sheet.value.blocks = Array.isArray(data.content?.blocks) ? data.content.blocks : []
+    sheet.value.blocks = normalizeBlocksForEditing(Array.isArray(data.content?.blocks) ? data.content.blocks : [])
 
     showStartWizard.value = false
   } catch (err) {
@@ -1897,7 +2031,7 @@ const generateWorksheetWithAI = async () => {
     sheet.value.description = data.description || sheet.value.description
     sheet.value.subject = data.subject || sheet.value.subject
     sheet.value.grade_level = data.grade_level || sheet.value.grade_level
-    sheet.value.blocks = Array.isArray(data.content?.blocks) ? data.content.blocks : []
+    sheet.value.blocks = normalizeBlocksForEditing(Array.isArray(data.content?.blocks) ? data.content.blocks : [])
   } catch (err) {
     alert(err.message)
   } finally {
@@ -1932,13 +2066,55 @@ const saveWorksheet = async (publish = false) => {
     })
   }
   const normalizedBlocks = sheet.value.blocks.map(block => {
-    if (block.type !== 'short_answer') return block
-    const keywords = String(block.keywordText || '')
-      .split(',')
-      .map(v => v.trim())
-      .filter(Boolean)
-      .slice(0, 10)
-    return { ...block, keywords }
+    if (block.type === 'short_answer') {
+      const keywords = String(block.keywordText || '')
+        .split(',')
+        .map(v => v.trim())
+        .filter(Boolean)
+        .slice(0, 10)
+      return { ...block, keywords }
+    }
+    if (block.type === 'video') {
+      const questions = (Array.isArray(block.questions) ? block.questions : []).map(question => {
+        const type = question.type || 'short_answer'
+        const base = {
+          text: question.text || '',
+          type,
+          timeSeconds: Number.isFinite(Number(question.timeSeconds)) ? Math.max(0, Number(question.timeSeconds)) : null,
+          points: Math.max(1, Number(question.points) || 1)
+        }
+        if (type === 'single_choice') {
+          return {
+            ...base,
+            options: Array.isArray(question.options) ? question.options : [],
+            correct: Number.isFinite(Number(question.correct)) ? Number(question.correct) : 0
+          }
+        }
+        if (type === 'multiple_choice') {
+          return {
+            ...base,
+            options: Array.isArray(question.options) ? question.options : [],
+            correct: Array.isArray(question.correct) ? question.correct : []
+          }
+        }
+        if (type === 'gap_fill') {
+          return {
+            ...base,
+            template: question.template || question.text || ''
+          }
+        }
+        return {
+          ...base,
+          sample_answer: question.sample_answer || ''
+        }
+      })
+      return {
+        ...block,
+        points: questions.reduce((sum, q) => sum + (Number(q.points) || 1), 0),
+        questions
+      }
+    }
+    return block
   })
 
   saving.value = true
