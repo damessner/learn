@@ -150,6 +150,13 @@ import MediaBlock from '../components/exercises/MediaBlock.vue'
 import AudioBlock from '../components/exercises/AudioBlock.vue'
 import Vocabulary from '../components/exercises/Vocabulary.vue'
 import ShortAnswer from '../components/exercises/ShortAnswer.vue'
+import Flashcards from '../components/exercises/Flashcards.vue'
+import MemoryMatch from '../components/exercises/MemoryMatch.vue'
+import WordScramble from '../components/exercises/WordScramble.vue'
+import SemanticSorter from '../components/exercises/SemanticSorter.vue'
+import ContextualDialogue from '../components/exercises/ContextualDialogue.vue'
+import FlowChallenge from '../components/exercises/FlowChallenge.vue'
+
 import ScratchpadCanvas from '../components/exercises/ScratchpadCanvas.vue'
 
 const route = useRoute()
@@ -224,13 +231,21 @@ const fetchWorksheet = async () => {
     // 3. Initialize answers object
     const initialAnswers = {}
     wsData.content.blocks.forEach(block => {
-      if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary'].includes(block.type)) {
+      if (['gap_fill', 'multiple_choice', 'single_choice', 'drag_drop', 'matching', 'vocabulary', 'flashcards', 'memory_match', 'word_scramble', 'semantic_sorter', 'contextual_dialogue', 'flow_challenge'].includes(block.type)) {
         // Init matching structure
         if (block.type === 'multiple_choice') {
           initialAnswers[block.id] = []
         } else if (['drag_drop', 'matching'].includes(block.type)) {
           initialAnswers[block.id] = {}
-        } else if (block.type === 'vocabulary') {
+        
+      } else if (block.type === 'flashcards' || block.type === 'memory_match') {
+        initialAnswers[block.id] = { completed: false }
+      } else if (block.type === 'word_scramble' || block.type === 'contextual_dialogue' || block.type === 'semantic_sorter') {
+        initialAnswers[block.id] = {}
+      } else if (block.type === 'flow_challenge') {
+        initialAnswers[block.id] = { score: 0 }
+
+      } else if (block.type === 'vocabulary') {
           initialAnswers[block.id] = { completed: false, answersMap: {} }
         } else if (block.type === 'gap_fill') {
           initialAnswers[block.id] = []
@@ -391,6 +406,13 @@ const getExerciseComponent = (type) => {
     case 'matching': return Matching
     case 'vocabulary': return Vocabulary
     case 'short_answer': return ShortAnswer
+    case 'flashcards': return Flashcards
+    case 'memory_match': return MemoryMatch
+    case 'word_scramble': return WordScramble
+    case 'semantic_sorter': return SemanticSorter
+    case 'contextual_dialogue': return ContextualDialogue
+    case 'flow_challenge': return FlowChallenge
+
     default: return null
   }
 }

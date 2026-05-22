@@ -2,7 +2,7 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
 const { requireAuth, requireRole } = require('./auth');
-const { generateWorksheetFromAI } = require('../services/aiWorksheet');
+const { generateWorksheetFromAI, generateNeuroVocabCourse } = require('../services/aiWorksheet');
 
 const router = express.Router();
 
@@ -24,6 +24,27 @@ router.post('/ai/generate', requireAuth, requireRole('teacher', 'admin'), async 
     const msg = err?.message || 'AI generation failed';
     const status = /required|unsupported|invalid|configured|Prompt/i.test(msg) ? 400 : 502;
     res.status(status).json({ error: msg });
+  }
+});
+
+
+// ─── AI Neuro Vocab Generation ──────────────────────────────────────────────────
+router.post('/ai/neuro-vocab', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
+  try {
+    const { rawList, provider } = req.body || {};
+    if (!rawList) {
+      return res.status(400).json({ error: 'Vocabulary list is required' });
+    }
+
+    const worksheet = await generateNeuroVocabCourse({
+      provider: provider || 'gemini',
+      rawList: String(rawList).trim()
+    });
+
+    res.json(worksheet.content);
+  } catch (err) {
+    const msg = err?.message || 'AI generation failed';
+    res.status(500).json({ error: msg });
   }
 });
 

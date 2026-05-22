@@ -33,7 +33,13 @@ const ALLOWED_BLOCK_TYPES = new Set([
   'single_choice',
   'matching',
   'vocabulary',
-  'short_answer'
+  'short_answer',
+  'flashcards',
+  'memory_match',
+  'word_scramble',
+  'semantic_sorter',
+  'contextual_dialogue',
+  'flow_challenge'
 ]);
 
 const SYSTEM_PROMPT = [
@@ -50,6 +56,10 @@ const SYSTEM_PROMPT = [
   'For vocabulary use pairs as [{"l":"EnglishWord","r":"GermanWord"}], direction as "l2r", "r2l", or "mixed", and rawText as string of "English = German" lines.',
   'For short_answer use prompt, optional sample_answer, optional keywords array, and points.',
   'For STEM subjects (Maths, Physics, Chemistry, etc.): always wrap mathematical expressions, equations, and formulas in standard LaTeX delimiters ($...$ for inline, $$...$$ for block presentation). Make sure scientific notation and units are clear (e.g. use $1.5 \\times 10^3$ in text, or using e-notation in correct answers like "1.5e3"). Supply valid numeric units when applicable (e.g. "10 m/s^2", "5.4 kg", "3e8 m/s") so the STEM-aware grading engine can evaluate them accurately.'
+
+  'For semantic_sorter use categories as [{"name":"CategoryName","words":["word1","word2"]}].',
+  'For contextual_dialogue use messages as [{"sender":"teacher","isGap":false,"text":"Hello"},{"sender":"student","isGap":true,"textBefore":"I am ","textAfter":".","answer":"good"}].',
+  'For flow_challenge use pairs exactly like vocabulary.'
 ].join(' ');
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = AI_TIMEOUT_MS) {
@@ -257,4 +267,46 @@ async function generateWorksheetFromAI({ provider = 'gemini', prompt }) {
   return sanitizeWorksheet(parsed);
 }
 
-module.exports = { generateWorksheetFromAI };
+
+async function generateNeuroVocabCourse({ rawList, provider = 'gemini' }) {
+  const prompt = `
+I am providing a raw vocabulary list.
+List:
+${rawList}
+
+I need you to generate a 4-step Neuro-Gamified learning course based on these exact words.
+Return a JSON array of blocks under the 'blocks' array in the content object.
+The blocks MUST follow this exact sequence:
+
+1. Block type "text": A short introductory text setting a theme or story around these words.
+2. Block type "semantic_sorter": Group the provided words into 2-4 logical semantic categories (e.g., verbs, nouns, emotions, places).
+3. Block type "contextual_dialogue": A chat conversation between a 'teacher' and 'student' where the provided words are the correct gap-fill answers. Make the dialogue engaging.
+4. Block type "flow_challenge": The provided vocabulary words in the pairs format [{l:"English", r:"Translation"}].
+
+Make sure the JSON structure exactly matches the required block types.`;
+
+  const selected = String(provider || 'gemini').toLowerCase();
+  let rawText;
+  if (selected === 'ollama') {
+    rawText = await callOllama(prompt);
+  } else {
+    rawText = await callGemini(prompt);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(extractJsonString(rawText));
+  } catch {
+    throw new Error('AI returned invalid JSON');
+  }
+  
+  if (Array.isArray(parsed)) {
+    parsed = { content: { blocks: parsed } };
+  } else if (parsed.blocks) {
+    parsed = { content: { blocks: parsed.blocks } };
+  }
+
+  return sanitizeWorksheet(parsed);
+}
+
+module.exports = { generateWorksheetFromAI, generateNeuroVocabCourse };

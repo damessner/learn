@@ -462,7 +462,95 @@
               <!-- Static Text Block -->
               <div v-else-if="block.type === 'text'" class="live-text-card card" v-math="block.content || ''"></div>
               
-              <!-- Static Media/Audio Blocks -->
+              
+              <!-- Flashcards / Memory Match / Flow Challenge -->
+              <div v-if="['flashcards', 'memory_match', 'flow_challenge'].includes(block.type)" class="editor-row">
+                <label>Instruction</label>
+                <input type="text" v-model="block.instruction" placeholder="e.g. Find the matching pairs" class="mb-2" />
+                <label>Add vocabulary pairs (Format: Word = Translation)</label>
+                <textarea 
+                  v-model="block.rawText" 
+                  @input="updateGamifiedPairs(block)"
+                  placeholder="apple = Apfel\nbanana = Banane" 
+                  rows="4"
+                ></textarea>
+                <span class="field-hint">Each line should contain an equals sign. Spaces around it are ignored.</span>
+              </div>
+
+              <!-- Word Scramble -->
+              <div v-if="block.type === 'word_scramble'" class="editor-row">
+                <div class="row-between">
+                  <label>Instruction</label>
+                  <div class="points-input">
+                    Points: <input type="number" v-model.number="block.points" min="1" />
+                  </div>
+                </div>
+                <input type="text" v-model="block.instruction" placeholder="e.g. Unscramble the letters" class="mb-2" />
+                <label>Words & Clues (Format: word = clue)</label>
+                <textarea 
+                  v-model="block.rawText" 
+                  @input="updateScrambleWords(block)"
+                  placeholder="apple = A red fruit\nbanana = A yellow fruit" 
+                  rows="4"
+                ></textarea>
+              </div>
+
+              <!-- Semantic Sorter -->
+              <div v-if="block.type === 'semantic_sorter'" class="editor-row">
+                <div class="row-between">
+                  <label>Instruction</label>
+                  <div class="points-input">
+                    Points: <input type="number" v-model.number="block.points" min="1" />
+                  </div>
+                </div>
+                <input type="text" v-model="block.instruction" placeholder="e.g. Sort into categories" class="mb-2" />
+                
+                <div v-for="(cat, cIdx) in block.categories" :key="cIdx" class="category-editor-card card glass mb-2">
+                  <div class="row-between mb-2">
+                    <input type="text" v-model="cat.name" placeholder="Category Name (e.g. Fruits)" style="font-weight: bold; width: 60%;" />
+                    <button @click="block.categories.splice(cIdx, 1)" class="btn-sm btn-danger">Delete Category</button>
+                  </div>
+                  <label>Words in this category (comma separated)</label>
+                  <input type="text" :value="cat.words.join(', ')" @input="updateCategoryWords($event, cat)" placeholder="apple, banana, cherry" />
+                </div>
+                <button @click="block.categories.push({ name: 'New Category', words: [] })" class="btn btn-secondary btn-sm">＋ Add Category</button>
+              </div>
+
+              <!-- Contextual Dialogue -->
+              <div v-if="block.type === 'contextual_dialogue'" class="editor-row">
+                <div class="row-between">
+                  <label>Instruction</label>
+                  <div class="points-input">
+                    Points: <input type="number" v-model.number="block.points" min="1" />
+                  </div>
+                </div>
+                <input type="text" v-model="block.instruction" placeholder="e.g. Fill the gaps in the chat" class="mb-2" />
+                
+                <label>Dialogue Messages</label>
+                <div v-for="(msg, mIdx) in block.messages" :key="mIdx" class="message-editor-row card glass mb-2">
+                  <div class="row-between mb-2">
+                    <select v-model="msg.sender" style="width: 120px;">
+                      <option value="teacher">Left (Bot)</option>
+                      <option value="student">Right (You)</option>
+                    </select>
+                    <label class="gap-toggle">
+                      <input type="checkbox" v-model="msg.isGap" /> Has Gap?
+                    </label>
+                    <button @click="block.messages.splice(mIdx, 1)" class="btn-sm btn-danger">×</button>
+                  </div>
+                  
+                  <div v-if="!msg.isGap">
+                    <input type="text" v-model="msg.text" placeholder="Message text" class="w-full" />
+                  </div>
+                  <div v-else style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" v-model="msg.textBefore" placeholder="Text before" style="flex: 1;" />
+                    <input type="text" v-model="msg.answer" placeholder="Correct Answer" style="flex: 1; border: 2px solid var(--success);" />
+                    <input type="text" v-model="msg.textAfter" placeholder="Text after" style="flex: 1;" />
+                  </div>
+                </div>
+                <button @click="block.messages.push({ sender: 'student', isGap: false, text: '' })" class="btn btn-secondary btn-sm">＋ Add Message</button>
+              </div>
+\n              <!-- Static Media/Audio Blocks -->
               <MediaBlock v-else-if="block.type === 'image'" v-bind="block" />
               <AudioBlock v-else-if="block.type === 'audio'" v-bind="block" />
             </div>
@@ -471,7 +559,40 @@
       </div>
     </div>
 
-    <!-- AI Generator Wizard Modal Overlay -->
+    
+    <!-- Vocabulary Course Wizard Modal -->
+    <div v-if="showVocabWizard" class="wizard-modal-overlay">
+      <div class="wizard-modal-card" style="height: auto; max-height: 80vh;">
+        <div v-if="vocabWizardLoading" class="wizard-loading-container">
+          <div class="wizard-spinner-emoji">🪄</div>
+          <h3>Generating Course...</h3>
+          <p>Weaving your vocabulary into a gamified sequence.</p>
+          <div class="wizard-progress-bar"><div class="wizard-progress-indefinite"></div></div>
+        </div>
+        <template v-else>
+          <header class="modal-header">
+            <h2>✨ Generate {{ vocabWizardType === 'standard' ? 'Standard' : 'Neuro-Gamified' }} Course</h2>
+            <button @click="showVocabWizard = false" class="btn-close">&times;</button>
+          </header>
+          <div class="wizard-scroll-container">
+            <p style="margin-bottom: 16px;">Paste your vocabulary list below. We will automatically generate a progressive sequence of 4-5 gamified exercises to teach these words.</p>
+            <div class="form-group">
+              <label>Vocabulary List (Format: english = Deutsch)</label>
+              <textarea 
+                v-model="vocabWizardRaw" 
+                rows="8" 
+                class="wizard-textarea" 
+                placeholder="apple = Apfel\nbanana = Banane\nto go = gehen"
+              ></textarea>
+            </div>
+            <div class="mt-4" style="text-align: right;">
+              <button @click="generateVocabCourse" class="btn btn-primary btn-lg btn-generate-magic">🪄 Generate Magic Worksheet</button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+\n    <!-- AI Generator Wizard Modal Overlay -->
     <div v-if="showStartWizard" class="wizard-modal-overlay">
       <div class="wizard-modal-card">
         <!-- Loading State Overlay -->
@@ -1059,6 +1180,156 @@ const removePair = (block, idx) => {
 }
 
 // Vocabulary utilities
+
+// Gamification updater functions
+const updateGamifiedPairs = (block) => {
+  const text = block.rawText || ''
+  const lines = text.split('\n')
+  const pairs = []
+  lines.forEach(line => {
+    const cleaned = line.trim()
+    if (!cleaned) return
+    const parts = cleaned.split(/\s*=\s*|\s*-\s*|\s*:\s*|,\s*/)
+    if (parts.length >= 2) {
+      pairs.push({
+        l: parts[0].trim(),
+        r: parts[1].trim()
+      })
+    }
+  })
+  block.pairs = pairs
+}
+
+const updateScrambleWords = (block) => {
+  const text = block.rawText || ''
+  const lines = text.split('\n')
+  const words = []
+  lines.forEach(line => {
+    const cleaned = line.trim()
+    if (!cleaned) return
+    const parts = cleaned.split(/\s*=\s*|\s*-\s*|\s*:\s*|,\s*/)
+    if (parts.length >= 2) {
+      words.push({
+        word: parts[0].trim(),
+        clue: parts[1].trim()
+      })
+    } else {
+      words.push({ word: parts[0].trim(), clue: '' })
+    }
+  })
+  block.words = words
+}
+
+const updateCategoryWords = (e, cat) => {
+  const text = e.target.value || ''
+  cat.words = text.split(',').map(w => w.trim()).filter(Boolean)
+}
+
+// Vocabulary Course Wizard Logic
+const showVocabWizard = ref(false)
+const vocabWizardType = ref('standard')
+const vocabWizardRaw = ref('')
+const vocabWizardLoading = ref(false)
+
+const openVocabWizard = (type) => {
+  vocabWizardType.value = type
+  vocabWizardRaw.value = ''
+  showVocabWizard.value = true
+}
+
+const generateVocabCourse = async () => {
+  if (!vocabWizardRaw.value.trim()) {
+    alert('Please paste a vocabulary list.')
+    return
+  }
+
+  vocabWizardLoading.value = true
+  
+  if (vocabWizardType.value === 'standard') {
+    // Generate purely on frontend
+    const tempBlock = { rawText: vocabWizardRaw.value }
+    updateGamifiedPairs(tempBlock)
+    const pairs = tempBlock.pairs
+    
+    if (pairs.length === 0) {
+      alert('Could not parse any word pairs. Please use the format "word = translation".')
+      vocabWizardLoading.value = false
+      return
+    }
+
+    sheet.value.blocks = [] // Clear existing
+
+    // 1. Instructions
+    sheet.value.blocks.push({
+      id: Date.now().toString() + '_1',
+      type: 'text',
+      content: '## Vocabulary Course\nWelcome to your customized vocabulary training. Follow the steps below to master these words.'
+    })
+
+    // 2. Flashcards
+    sheet.value.blocks.push({
+      id: Date.now().toString() + '_2',
+      type: 'flashcards',
+      instruction: 'Study Phase: Review the words using flashcards.',
+      pairs: JSON.parse(JSON.stringify(pairs))
+    })
+
+    // 3. Memory Match
+    sheet.value.blocks.push({
+      id: Date.now().toString() + '_3',
+      type: 'memory_match',
+      instruction: 'Game Phase: Find the matching pairs.',
+      pairs: JSON.parse(JSON.stringify(pairs))
+    })
+
+    // 4. Word Scramble
+    sheet.value.blocks.push({
+      id: Date.now().toString() + '_4',
+      type: 'word_scramble',
+      instruction: 'Spelling Phase: Unscramble the letters.',
+      points: pairs.length,
+      words: pairs.map(p => ({ word: p.l, clue: p.r }))
+    })
+
+    // 5. Vocabulary strictly-typed
+    sheet.value.blocks.push({
+      id: Date.now().toString() + '_5',
+      type: 'vocabulary',
+      instruction: 'Final Boss: Type the correct translations.',
+      points: pairs.length * 2,
+      direction: 'mixed',
+      pairs: JSON.parse(JSON.stringify(pairs))
+    })
+
+    showVocabWizard.value = false
+    vocabWizardLoading.value = false
+  } else {
+    // Neuro-Gamified (Needs Backend / Gemini API)
+    const token = localStorage.getItem('token')
+    try {
+      const resp = await fetch('http://localhost:3000/api/worksheets/ai/neuro-vocab', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          rawList: vocabWizardRaw.value
+        })
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data?.error || 'AI generation failed')
+      
+      sheet.value.blocks = data.blocks || []
+      showVocabWizard.value = false
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      vocabWizardLoading.value = false
+    }
+  }
+}
+
 const parseVocabLines = (block) => {
   const text = block.rawText || ''
   const lines = text.split('\n')
