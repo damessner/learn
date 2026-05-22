@@ -10,6 +10,11 @@ const say = require('say');
 
 const router = express.Router();
 
+function canManageWorksheet(req, worksheetRow) {
+  if (!worksheetRow) return false;
+  return req.user.role === 'admin' || worksheetRow.created_by === req.user.userId;
+}
+
 // ─── AI Worksheet Generation ────────────────────────────────────────────────────
 router.post('/ai/generate', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
   try {
@@ -91,13 +96,31 @@ router.post('/tts', requireAuth, requireRole('teacher', 'admin'), async (req, re
 
       const { audioStream } = tts.toStream(ttsText);
       const writeStream = fs.createWriteStream(outputPath);
-
-      audioStream.pipe(writeStream);
+      let settled = false;
+      const cleanup = () => {
+        try { writeStream.destroy(); } catch {}
+        try { audioStream.destroy(); } catch {}
+        if (fs.existsSync(outputPath)) {
+          try { fs.unlinkSync(outputPath); } catch {}
+        }
+      };
 
       await new Promise((resolve, reject) => {
-        writeStream.on('finish', resolve);
-        writeStream.on('error', reject);
-        audioStream.on('error', reject);
+        const rejectOnce = (err) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(err);
+        };
+        const resolveOnce = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        writeStream.on('finish', resolveOnce);
+        writeStream.on('error', rejectOnce);
+        audioStream.on('error', rejectOnce);
+        audioStream.pipe(writeStream);
       });
 
       const stats = fs.statSync(outputPath);
@@ -117,7 +140,12 @@ router.post('/tts', requireAuth, requireRole('teacher', 'admin'), async (req, re
 
       await new Promise((resolve, reject) => {
         say.export(ttsText, null, 1.0, outputPath, (err) => {
-          if (err) return reject(err);
+          if (err) {
+            if (fs.existsSync(outputPath)) {
+              try { fs.unlinkSync(outputPath); } catch {}
+            }
+            return reject(err);
+          }
           resolve();
         });
       });
@@ -136,6 +164,9 @@ router.post('/tts', requireAuth, requireRole('teacher', 'admin'), async (req, re
     }
   } catch (err) {
     console.error('[TTS ERROR]', err);
+    if (String(err?.message || '').toLowerCase().includes('say') || String(err?.message || '').toLowerCase().includes('voice')) {
+      return res.status(503).json({ error: 'Local TTS engine unavailable on this server. Use cloud TTS or install system voices.' });
+    }
     res.status(500).json({ error: err.message || 'Text-to-speech generation failed' });
   }
 });
@@ -413,13 +444,27 @@ router.delete('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) =
     return res.status(403).json({ error: 'Not your worksheet' });
   }
 
-  db.prepare('DELETE FROM worksheets WHERE id = ?').run(req.params.id);
+  db.transaction(() => {
+    const assignmentIds = db.prepare('SELECT id FROM assignments WHERE worksheet_id = ?').all(req.params.id).map(r => r.id);
+    if (assignmentIds.length > 0) {
+      const placeholders = assignmentIds.map(() => '?').join(',');
+      db.prepare(`DELETE FROM peer_reviews WHERE assignment_id IN (${placeholders})`).run(...assignmentIds);
+      db.prepare(`DELETE FROM submission_attempts WHERE assignment_id IN (${placeholders})`).run(...assignmentIds);
+      db.prepare(`DELETE FROM submissions WHERE assignment_id IN (${placeholders})`).run(...assignmentIds);
+      db.prepare(`DELETE FROM assignments WHERE id IN (${placeholders})`).run(...assignmentIds);
+    }
+    db.prepare('DELETE FROM course_worksheets WHERE worksheet_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM worksheets WHERE id = ?').run(req.params.id);
+  })();
   res.json({ success: true });
 });
 
 // ─── Assignments ───────────────────────────────────────────────────────────────
 router.get('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   const db = getDB();
+  const worksheet = db.prepare('SELECT id, created_by FROM worksheets WHERE id = ?').get(req.params.id);
+  if (!worksheet) return res.status(404).json({ error: 'Worksheet not found' });
+  if (!canManageWorksheet(req, worksheet)) return res.status(403).json({ error: 'Not your worksheet' });
   const assignments = db.prepare(`
     SELECT a.*, COUNT(s.id) as submission_count
     FROM assignments a
@@ -436,6 +481,9 @@ router.post('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (r
   if (!class_name) return res.status(400).json({ error: 'class_name required' });
 
   const db = getDB();
+  const worksheet = db.prepare('SELECT id, created_by FROM worksheets WHERE id = ?').get(req.params.id);
+  if (!worksheet) return res.status(404).json({ error: 'Worksheet not found' });
+  if (!canManageWorksheet(req, worksheet)) return res.status(403).json({ error: 'Not your worksheet' });
   const id = uuidv4();
   db.prepare(`
     INSERT INTO assignments (id, worksheet_id, class_name, class_id, due_date, created_by, retry_policy, max_attempts, peer_review_enabled, adaptive_difficulty)
@@ -459,15 +507,33 @@ router.post('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (r
 
 router.delete('/:id/assignments/:assignmentId', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   const db = getDB();
+  const worksheet = db.prepare('SELECT id, created_by FROM worksheets WHERE id = ?').get(req.params.id);
+  if (!worksheet) return res.status(404).json({ error: 'Worksheet not found' });
+  if (!canManageWorksheet(req, worksheet)) return res.status(403).json({ error: 'Not your worksheet' });
   const assignment = db.prepare('SELECT * FROM assignments WHERE id = ? AND worksheet_id = ?').get(req.params.assignmentId, req.params.id);
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
-  db.prepare('DELETE FROM assignments WHERE id = ?').run(req.params.assignmentId);
+  db.transaction(() => {
+    db.prepare('DELETE FROM peer_reviews WHERE assignment_id = ?').run(req.params.assignmentId);
+    db.prepare('DELETE FROM submission_attempts WHERE assignment_id = ?').run(req.params.assignmentId);
+    db.prepare('DELETE FROM submissions WHERE assignment_id = ?').run(req.params.assignmentId);
+    db.prepare('DELETE FROM assignments WHERE id = ?').run(req.params.assignmentId);
+  })();
   res.json({ success: true });
 });
 
 // ─── Assignment results (teacher view) ────────────────────────────────────────
 router.get('/assignments/:assignmentId/results', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   const db = getDB();
+  const assignment = db.prepare(`
+    SELECT a.id, a.created_by, w.created_by as worksheet_owner
+    FROM assignments a
+    JOIN worksheets w ON w.id = a.worksheet_id
+    WHERE a.id = ?
+  `).get(req.params.assignmentId);
+  if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+  if (req.user.role !== 'admin' && assignment.worksheet_owner !== req.user.userId && assignment.created_by !== req.user.userId) {
+    return res.status(403).json({ error: 'Not allowed' });
+  }
   const results = db.prepare(`
     SELECT s.*, u.name as student_name, u.email as student_email
     FROM submissions s
@@ -508,7 +574,7 @@ router.post('/:id/duplicate', requireAuth, requireRole('teacher', 'admin'), (req
 router.get('/assignments/:assignmentId/stats', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   const db = getDB();
   const assignment = db.prepare(`
-    SELECT a.*, w.total_points, c.name as class_name,
+    SELECT a.*, w.total_points, w.created_by as worksheet_owner, c.name as class_name,
            (SELECT COUNT(*) FROM class_students cs WHERE cs.class_id = a.class_id) as total_students
     FROM assignments a
     JOIN worksheets w ON w.id = a.worksheet_id
@@ -516,6 +582,9 @@ router.get('/assignments/:assignmentId/stats', requireAuth, requireRole('teacher
     WHERE a.id = ?
   `).get(req.params.assignmentId);
   if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+  if (req.user.role !== 'admin' && assignment.worksheet_owner !== req.user.userId && assignment.created_by !== req.user.userId) {
+    return res.status(403).json({ error: 'Not allowed' });
+  }
 
   const submissions = db.prepare(`
     SELECT score, max_score FROM submissions

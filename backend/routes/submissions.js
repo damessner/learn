@@ -462,6 +462,18 @@ router.post('/:id/feedback', requireAuth, requireRole('teacher', 'admin'), (req,
   const db = getDB();
   const submission = db.prepare('SELECT * FROM submissions WHERE id = ?').get(req.params.id);
   if (!submission) return res.status(404).json({ error: 'Submission not found' });
+  if (req.user.role !== 'admin') {
+    const canGrade = db.prepare(`
+      SELECT 1
+      FROM assignments a
+      JOIN worksheets w ON w.id = a.worksheet_id
+      LEFT JOIN classes c ON c.id = a.class_id
+      WHERE a.id = ?
+        AND (a.created_by = ? OR w.created_by = ? OR c.created_by = ?)
+      LIMIT 1
+    `).get(submission.assignment_id, req.user.userId, req.user.userId, req.user.userId);
+    if (!canGrade) return res.status(403).json({ error: 'Access denied' });
+  }
   db.prepare('UPDATE submissions SET feedback_text = ? WHERE id = ?').run(feedback_text, req.params.id);
   res.json({ success: true });
 });
