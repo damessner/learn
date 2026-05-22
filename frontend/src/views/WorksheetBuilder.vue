@@ -20,33 +20,86 @@
 
         <!-- Add Question / Content — TOP of sidebar -->
         <div class="add-blocks-section">
-          <h3>Add Question / Content</h3>
+          <h3>Presentation</h3>
           <div class="block-buttons-grid">
-            <button @click="addBlock('text')" class="btn-add-block">📝 Instructions</button>
-            <button @click="addBlock('image')" class="btn-add-block">🖼️ Image</button>
-            <button @click="addBlock('audio')" class="btn-add-block">🎵 Audio</button>
-            <button @click="addBlock('gap_fill')" class="btn-add-block">✏️ Gap Fill</button>
-            <button @click="addBlock('drag_drop')" class="btn-add-block">👉 Drag & Drop</button>
-            <button @click="addBlock('multiple_choice')" class="btn-add-block">☑️ Multi Choice</button>
-            <button @click="addBlock('single_choice')" class="btn-add-block">🔘 Single Choice</button>
-            <button @click="addBlock('matching')" class="btn-add-block">🔗 Connect Texts</button>
-            <button @click="addBlock('short_answer')" class="btn-add-block">📝 Short Answer</button>
+            <button @click="addBlock('text')" class="btn-add-block" title="Display text, instructions, or reading material">
+              <span class="btn-text">📝 Instructions</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('image')" class="btn-add-block" title="Show a picture or illustration">
+              <span class="btn-text">🖼️ Image</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('audio')" class="btn-add-block" title="Play a sound or voice recording">
+              <span class="btn-text">🎵 Audio</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+          </div>
+
+          <h3 class="mt-4">Basic Questions</h3>
+          <div class="block-buttons-grid">
+            <button @click="addBlock('single_choice')" class="btn-add-block" title="Multiple options, only one correct answer">
+              <span class="btn-text">🔘 Single Choice</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('multiple_choice')" class="btn-add-block" title="Multiple options, multiple correct answers">
+              <span class="btn-text">☑️ Multi Choice</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('short_answer')" class="btn-add-block" title="Text box for a brief, open-ended answer">
+              <span class="btn-text">📝 Short Answer</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+          </div>
+
+          <h3 class="mt-4">Interactive Questions</h3>
+          <div class="block-buttons-grid">
+            <button @click="addBlock('gap_fill')" class="btn-add-block" title="Students type missing words into blanks">
+              <span class="btn-text">✏️ Gap Fill</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('drag_drop')" class="btn-add-block" title="Drag and drop words into designated drop zones">
+              <span class="btn-text">👉 Drag & Drop</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('matching')" class="btn-add-block" title="Match items on the left to items on the right">
+              <span class="btn-text">🔗 Connect Texts</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
           </div>
         </div>
 
         <!-- Vocab / Gamify Sections -->
         <div class="gamify-sections mt-4">
-          <h3 style="margin-bottom: 8px;">Gamified & Vocab</h3>
+          <h3 style="margin-bottom: 8px;">Gamified Learning</h3>
           <div class="block-buttons-grid">
-            <button @click="addBlock('flashcards')" class="btn-add-block" style="border-color:var(--primary)">🗂️ Flashcards</button>
-            <button @click="addBlock('memory_match')" class="btn-add-block" style="border-color:var(--primary)">🃏 Memory Match</button>
-            <button @click="addBlock('word_scramble')" class="btn-add-block" style="border-color:var(--primary)">🔡 Word Scramble</button>
-            <button @click="addBlock('semantic_sorter')" class="btn-add-block" style="border-color:#6366f1">🧠 Semantic Sort</button>
-            <button @click="addBlock('contextual_dialogue')" class="btn-add-block" style="border-color:#6366f1">💬 Dialogue</button>
-            <button @click="addBlock('flow_challenge')" class="btn-add-block" style="border-color:#6366f1">⏳ Flow Game</button>
+            <button @click="addBlock('flashcards')" class="btn-add-block" style="border-color:var(--primary)" title="Learn terms step-by-step with flip cards">
+              <span class="btn-text">🗂️ Flashcards</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('memory_match')" class="btn-add-block" style="border-color:var(--primary)" title="Flip cards to find matching pairs">
+              <span class="btn-text">🃏 Memory Match</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('word_scramble')" class="btn-add-block" style="border-color:var(--primary)" title="Unscramble letters to form words">
+              <span class="btn-text">🔡 Word Scramble</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('semantic_sorter')" class="btn-add-block" style="border-color:#6366f1" title="Categorize terms by their meaning">
+              <span class="btn-text">🧠 Semantic Sort</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('contextual_dialogue')" class="btn-add-block" style="border-color:#6366f1" title="Roleplay a conversation with interactive blanks">
+              <span class="btn-text">💬 Dialogue</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
+            <button @click="addBlock('flow_challenge')" class="btn-add-block" style="border-color:#6366f1" title="Fast-paced challenge against the clock">
+              <span class="btn-text">⏳ Flow Game</span>
+              <span class="info-icon">ℹ️</span>
+            </button>
           </div>
-          <button @click="openVocabWizard('standard')" class="btn btn-secondary w-full mt-2">🪄 Std Vocab Course</button>
-          <button @click="openVocabWizard('neuro')" class="btn btn-secondary w-full mt-2" style="background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;">🪄 Neuro Vocab Course</button>
+          <button @click="openVocabWizard('standard')" class="btn btn-secondary w-full mt-2" title="Generate standard exercises from a vocabulary list">🪄 Std Vocab Course</button>
+          <button @click="openVocabWizard('neuro')" class="btn btn-secondary w-full mt-2" style="background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;" title="Generate a full gamified neuro-learning course from a vocab list">🪄 Neuro Vocab Course</button>
         </div>
 
         <!-- STEM Quick Presets — collapsible accordion -->
@@ -1916,10 +1969,26 @@ const submitLocalPreview = () => {
   text-align: left;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   min-height: 40px;
   box-shadow: none;
   transition: all 0.2s ease;
+}
+
+.btn-add-block .btn-text {
+  flex: 1;
+}
+
+.btn-add-block .info-icon {
+  font-size: 11px;
+  opacity: 0.5;
+  cursor: help;
+  transition: opacity 0.2s ease;
+}
+
+.btn-add-block:hover .info-icon {
+  opacity: 1;
 }
 
 .btn-add-block:hover {
