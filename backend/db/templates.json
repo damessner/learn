@@ -1,5 +1,450 @@
 [
   {
+    "id": "tpl_eng_pirates_body",
+    "title": "Pirates & the Human Body 🏴‍☠️",
+    "description": "Learn body parts vocabulary, practice singular and irregular plurals, and master 'have got' vs 'has got' descriptions.",
+    "subject": "Englisch",
+    "grade_level": "1. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_pirates_text",
+          "type": "text",
+          "content": "# Pirates & Body Parts\n\nAhoy, mateys! Let's meet Captain Hook. He is a famous pirate.\n\n### 'Have got' vs. 'Has got' Grammar:\n- **I / We / You / They** -> have got (haven't got)\n- **He / She / It** -> has got (hasn't got)\n\n*Examples*:\n- I **have got** two arms.\n- The pirate **has got** an eye patch."
+        },
+        {
+          "id": "blk_pirates_vocab",
+          "type": "vocabulary",
+          "instruction": "Translate these human body parts into German:",
+          "direction": "l2r",
+          "words": [
+            {
+              "left": "head",
+              "right": "Kopf"
+            },
+            {
+              "left": "shoulder",
+              "right": "Schulter"
+            },
+            {
+              "left": "arm",
+              "right": "Arm"
+            },
+            {
+              "left": "hand",
+              "right": "Hand"
+            },
+            {
+              "left": "leg",
+              "right": "Bein"
+            },
+            {
+              "left": "foot",
+              "right": "Fuß"
+            },
+            {
+              "left": "eye",
+              "right": "Auge"
+            },
+            {
+              "left": "ear",
+              "right": "Ohr"
+            },
+            {
+              "left": "nose",
+              "right": "Nase"
+            },
+            {
+              "left": "mouth",
+              "right": "Mund"
+            }
+          ],
+          "points": 10
+        },
+        {
+          "id": "blk_pirates_havegot_gap",
+          "type": "gap_fill",
+          "instruction": "Fill in the blanks with the correct form: 'have got', 'has got', 'haven't got', or 'hasn't got':",
+          "template": "1. Captain Hook ((has got)) a hook instead of a right hand.\n2. Pirates ((have got)) big ships to sail the seas.\n3. A skeleton pirate ((hasn't got)) any skin or hair.\n4. I ((have got)) two eyes, but the cyclops pirate ((has got)) only one.\n5. We ((have got)) a treasure map! Let's find the gold.",
+          "points": 5
+        },
+        {
+          "id": "blk_pirates_plurals_mc",
+          "type": "multiple_choice",
+          "instruction": "Select all correct irregular plurals for body parts:",
+          "options": [
+            "one foot -> two feet",
+            "one tooth -> two tooths",
+            "one tooth -> two teeth",
+            "one foot -> two foots"
+          ],
+          "correct": [
+            0,
+            2
+          ],
+          "points": 2
+        },
+        {
+          "id": "blk_pirates_drag",
+          "type": "drag_drop",
+          "instruction": "Drag the pirate items into the correct sentences describing the crew:",
+          "items": [
+            "wooden leg",
+            "parrot",
+            "treasure chest",
+            "eye patch"
+          ],
+          "targets": [
+            "1. The captain wears a black ((eye patch)) over his left eye.",
+            "2. The old sailor walk with a ((wooden leg)).",
+            "3. The colorful green ((parrot)) sits on the captain's shoulder.",
+            "4. The pirates buried a heavy ((treasure chest)) on the island."
+          ],
+          "answers": {
+            "0": "eye patch",
+            "1": "wooden leg",
+            "2": "parrot",
+            "3": "treasure chest"
+          },
+          "points": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_eng_zoo_animals",
+    "title": "At the Zoo: Animals & Prepositions 🦁",
+    "description": "Learn zoo animals spelling, practice conjugating 'to be' (am/is/are), and master spatial prepositions (in, on, under, next to).",
+    "subject": "Englisch",
+    "grade_level": "1. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_zoo_text_1",
+          "type": "text",
+          "content": "# Zoo Animals & Prepositions\n\n### The Verb 'to be':\n- **I** -> am\n- **He / She / It** -> is\n- **We / You / They** -> are\n\n### Prepositions of Place:\n- **in**: inside something (e.g. *in the water*)\n- **on**: on top of something (e.g. *on the tree*)\n- **under**: beneath something (e.g. *under the rock*)\n- **next to**: beside something (e.g. *next to the elephant*)"
+        },
+        {
+          "id": "blk_zoo_vocab",
+          "type": "vocabulary",
+          "instruction": "Write the German translations for these zoo animals:",
+          "direction": "l2r",
+          "words": [
+            {
+              "left": "elephant",
+              "right": "Elefant"
+            },
+            {
+              "left": "giraffe",
+              "right": "Giraffe"
+            },
+            {
+              "left": "monkey",
+              "right": "Affe"
+            },
+            {
+              "left": "parrot",
+              "right": "Papagei"
+            },
+            {
+              "left": "snake",
+              "right": "Schlange"
+            },
+            {
+              "left": "crocodile",
+              "right": "Krokodil"
+            },
+            {
+              "left": "lion",
+              "right": "Löwe"
+            },
+            {
+              "left": "hippo",
+              "right": "Flusspferd"
+            },
+            {
+              "left": "tiger",
+              "right": "Tiger"
+            },
+            {
+              "left": "zebra",
+              "right": "Zebra"
+            }
+          ],
+          "points": 10
+        },
+        {
+          "id": "blk_zoo_tobe_gap",
+          "type": "gap_fill",
+          "instruction": "Fill in the blanks with the correct form of the verb 'to be' (am, is, are, am not, isn't, aren't):",
+          "template": "1. I ((am)) very happy to visit the zoo today!\n2. Look! The monkeys ((are)) so funny.\n3. The giraffe ((is)) very tall and has a long neck.\n4. Elephants ((aren't)) small, they are huge!\n5. Lions ((are)) dangerous cats. A lion ((isn't)) a pet.",
+          "points": 6
+        },
+        {
+          "id": "blk_zoo_prep_drag",
+          "type": "drag_drop",
+          "instruction": "Drag the correct prepositions (in, on, under, next to) into the sentences:",
+          "items": [
+            "in",
+            "on",
+            "under",
+            "next to"
+          ],
+          "targets": [
+            "1. The dolphin is swimming ((in)) the pool.",
+            "2. The bird is sitting ((on)) the branch.",
+            "3. The crocodile is sleeping ((under)) the warm sun lamp.",
+            "4. The zebra is standing ((next to)) the fence."
+          ],
+          "answers": {
+            "0": "in",
+            "1": "on",
+            "2": "under",
+            "3": "next to"
+          },
+          "points": 4
+        },
+        {
+          "id": "blk_zoo_match",
+          "type": "matching",
+          "instruction": "Match the animal description to the correct animal:",
+          "left": [
+            "It has black and white stripes.",
+            "It has a very long neck.",
+            "It is green and has very sharp teeth.",
+            "It is loud and can repeat human words."
+          ],
+          "right": [
+            "crocodile",
+            "giraffe",
+            "parrot",
+            "zebra"
+          ],
+          "pairs": [
+            [
+              "It has black and white stripes.",
+              "zebra"
+            ],
+            [
+              "It has a very long neck.",
+              "giraffe"
+            ],
+            [
+              "It is green and has very sharp teeth.",
+              "crocodile"
+            ],
+            [
+              "It is loud and can repeat human words.",
+              "parrot"
+            ]
+          ],
+          "points": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_eng_school_grammar",
+    "title": "School Grammar: Plurals & Numbers 📐",
+    "description": "Master plurals (regular and irregular) and practice counting numbers from 1 to 25 with simple math calculations.",
+    "subject": "Englisch",
+    "grade_level": "1. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_gram_text_1",
+          "type": "text",
+          "content": "# Plurals & Numbers\n\n### Plural Rules:\n- **Most nouns**: Add `-s` (e.g. *pen -> pens*)\n- **Nouns ending in -s, -sh, -ch, -x**: Add `-es` (e.g. *box -> boxes*)\n- **Irregulars**: Learn them! (*child -> children*, *man -> men*, *foot -> feet*)\n\n### Numbers 1 - 25:\n1 one, 2 two, 3 three, 4 four, 5 five, 6 six, 7 seven, 8 eight, 9 nine, 10 ten, 11 eleven, 12 twelve, 13 thirteen, 14 fourteen, 15 fifteen, 16 sixteen, 17 seventeen, 18 eighteen, 19 nineteen, 20 twenty... 25 twenty-five."
+        },
+        {
+          "id": "blk_gram_gap_1",
+          "type": "gap_fill",
+          "instruction": "Write the correct plural form of the words in brackets:",
+          "template": "1. I have two ((dogs)) at home. (dog)\n2. We need three ((boxes)) for the books. (box)\n3. There are four ((children)) in the playground. (child)\n4. Touch your two ((feet))! (foot)\n5. The teacher has five red ((pens)). (pen)",
+          "points": 5
+        },
+        {
+          "id": "blk_gram_sc_1",
+          "type": "single_choice",
+          "instruction": "Choose the correct word for the number '19':",
+          "options": [
+            "nineteen",
+            "ninety",
+            "nine",
+            "nineteene"
+          ],
+          "correct": 0,
+          "points": 1
+        },
+        {
+          "id": "blk_gram_drag",
+          "type": "drag_drop",
+          "instruction": "Drag the nouns into the correct list (Singular vs. Plural):",
+          "items": [
+            "pencil",
+            "children",
+            "ruler",
+            "books",
+            "teachers",
+            "desk"
+          ],
+          "targets": [
+            "Singular items: ((pencil)), ((ruler)), ((desk))",
+            "Plural items: ((children)), ((books)), ((teachers))"
+          ],
+          "answers": {
+            "0": "pencil",
+            "1": "ruler",
+            "2": "desk",
+            "3": "children",
+            "4": "books",
+            "5": "teachers"
+          },
+          "points": 6
+        },
+        {
+          "id": "blk_gram_math",
+          "type": "gap_fill",
+          "instruction": "Write the results of these math sums in English words (e.g. twelve, fifteen):",
+          "template": "1. Five plus seven is ((twelve)).\n2. Eleven plus nine is ((twenty)).\n3. Eight plus fifteen is ((twenty-three)).\n4. Three plus eleven is ((fourteen)).",
+          "points": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_eng_welcome_school",
+    "title": "Welcome to School! 🏫",
+    "description": "Learn key school things, colors, and basic meet-and-greet dialogue patterns in this intro worksheet.",
+    "subject": "Englisch",
+    "grade_level": "1. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_welc_text_1",
+          "type": "text",
+          "content": "# Welcome to School!\n\nHi! Welcome to your first English worksheet. Let's learn about school things and how to greet each other.\n\n### Dialogue Example:\n* **Teacher**: Hello! What is your name?\n* **Student**: Hi! My name is Emily. Nice to meet you!\n* **Teacher**: Nice to meet you, too!"
+        },
+        {
+          "id": "blk_welc_vocab",
+          "type": "vocabulary",
+          "instruction": "Practice spelling these common school words. Translate them into German:",
+          "direction": "l2r",
+          "words": [
+            {
+              "left": "schoolbag",
+              "right": "Schultasche"
+            },
+            {
+              "left": "pencil sharpener",
+              "right": "Bleistiftspitzer"
+            },
+            {
+              "left": "blackboard",
+              "right": "Tafel"
+            },
+            {
+              "left": "window",
+              "right": "Fenster"
+            },
+            {
+              "left": "teacher",
+              "right": "Lehrer"
+            },
+            {
+              "left": "classroom",
+              "right": "Klassenzimmer"
+            },
+            {
+              "left": "scissors",
+              "right": "Schere"
+            },
+            {
+              "left": "glue",
+              "right": "Kleber"
+            },
+            {
+              "left": "book",
+              "right": "Buch"
+            },
+            {
+              "left": "desk",
+              "right": "Schreibtisch"
+            }
+          ],
+          "points": 10
+        },
+        {
+          "id": "blk_welc_match",
+          "type": "matching",
+          "instruction": "Match the German school items to their correct English translations:",
+          "left": [
+            "Füller",
+            "Heft",
+            "Lineal",
+            "Radiergummi"
+          ],
+          "right": [
+            "exercise book",
+            "fountain pen",
+            "rubber",
+            "ruler"
+          ],
+          "pairs": [
+            [
+              "Füller",
+              "fountain pen"
+            ],
+            [
+              "Heft",
+              "exercise book"
+            ],
+            [
+              "Lineal",
+              "ruler"
+            ],
+            [
+              "Radiergummi",
+              "rubber"
+            ]
+          ],
+          "points": 4
+        },
+        {
+          "id": "blk_welc_drag",
+          "type": "drag_drop",
+          "instruction": "Drag the correct color name into the sentences below:",
+          "items": [
+            "blue",
+            "yellow",
+            "green",
+            "red"
+          ],
+          "targets": [
+            "1. The sun is ((yellow)) in the sky.",
+            "2. Grass is ((green)) in summer.",
+            "3. The ocean is deep ((blue)).",
+            "4. A ripe strawberry is bright ((red))."
+          ],
+          "answers": {
+            "0": "yellow",
+            "1": "green",
+            "2": "blue",
+            "3": "red"
+          },
+          "points": 4
+        },
+        {
+          "id": "blk_welc_gap",
+          "type": "gap_fill",
+          "instruction": "Complete the conversation. Fill in the missing words (name, meet, Hello, is):",
+          "template": "A: ((Hello))! What is your ((name))?\nB: Hi! My name ((is)) Lisa.\nA: Nice to ((meet)) you, Lisa!\nB: Nice to meet you, too!",
+          "points": 4
+        }
+      ]
+    }
+  },
+  {
     "id": "tpl_present_perfect_past_simple",
     "title": "Present Perfect vs. Past Simple",
     "description": "Interactive grammar quiz testing the difference between actions completed in the past and actions related to the present.",
@@ -23,7 +468,14 @@
           "id": "blk_tpl_ppps_drag_1",
           "type": "drag_drop",
           "instruction": "Drag and drop the correct signal words into the correct category:",
-          "items": ["yesterday", "since 2018", "in 2015", "already", "two days ago", "never"],
+          "items": [
+            "yesterday",
+            "since 2018",
+            "in 2015",
+            "already",
+            "two days ago",
+            "never"
+          ],
           "targets": [
             "Past Simple signal words: ((yesterday)), ((in 2015)), ((two days ago))",
             "Present Perfect signal words: ((since 2018)), ((already)), ((never))"
@@ -77,13 +529,35 @@
           "id": "blk_tpl_prep_match_1",
           "type": "matching",
           "instruction": "Match the prepositions of place with their corresponding meaning:",
-          "left": ["under", "next to", "in front of", "between"],
-          "right": ["directly beside", "beneath or below", "in the middle of two things", "at the face of"],
+          "left": [
+            "under",
+            "next to",
+            "in front of",
+            "between"
+          ],
+          "right": [
+            "directly beside",
+            "beneath or below",
+            "in the middle of two things",
+            "at the face of"
+          ],
           "pairs": [
-            ["under", "beneath or below"],
-            ["next to", "directly beside"],
-            ["in front of", "at the face of"],
-            ["between", "in the middle of two things"]
+            [
+              "under",
+              "beneath or below"
+            ],
+            [
+              "next to",
+              "directly beside"
+            ],
+            [
+              "in front of",
+              "at the face of"
+            ],
+            [
+              "between",
+              "in the middle of two things"
+            ]
           ],
           "points": 4
         }
@@ -109,16 +583,46 @@
           "instruction": "Translate the following irregular verbs into German:",
           "direction": "l2r",
           "words": [
-            { "left": "bring", "right": "bringen" },
-            { "left": "catch", "right": "fangen" },
-            { "left": "do", "right": "tun" },
-            { "left": "eat", "right": "essen" },
-            { "left": "go", "right": "gehen" },
-            { "left": "have", "right": "haben" },
-            { "left": "write", "right": "schreiben" },
-            { "left": "read", "right": "lesen" },
-            { "left": "sing", "right": "singen" },
-            { "left": "speak", "right": "sprechen" }
+            {
+              "left": "bring",
+              "right": "bringen"
+            },
+            {
+              "left": "catch",
+              "right": "fangen"
+            },
+            {
+              "left": "do",
+              "right": "tun"
+            },
+            {
+              "left": "eat",
+              "right": "essen"
+            },
+            {
+              "left": "go",
+              "right": "gehen"
+            },
+            {
+              "left": "have",
+              "right": "haben"
+            },
+            {
+              "left": "write",
+              "right": "schreiben"
+            },
+            {
+              "left": "read",
+              "right": "lesen"
+            },
+            {
+              "left": "sing",
+              "right": "singen"
+            },
+            {
+              "left": "speak",
+              "right": "sprechen"
+            }
           ],
           "points": 10
         }
@@ -148,7 +652,10 @@
             "A new school is being constructed in Telfs.",
             "We have played football all afternoon."
           ],
-          "correct": [0, 2],
+          "correct": [
+            0,
+            2
+          ],
           "points": 2
         },
         {
@@ -224,13 +731,35 @@
           "id": "blk_geo_oceans_match",
           "type": "matching",
           "instruction": "Ordne den Kontinenten ihre Besonderheiten zu:",
-          "left": ["Asien", "Australien", "Antarktika", "Afrika"],
-          "right": ["Größter Kontinent", "Kleinstes Land & Kontinent", "Kältester Kontinent", "Zweitgrößter Kontinent"],
+          "left": [
+            "Asien",
+            "Australien",
+            "Antarktika",
+            "Afrika"
+          ],
+          "right": [
+            "Größter Kontinent",
+            "Kleinstes Land & Kontinent",
+            "Kältester Kontinent",
+            "Zweitgrößter Kontinent"
+          ],
           "pairs": [
-            ["Asien", "Größter Kontinent"],
-            ["Australien", "Kleinstes Land & Kontinent"],
-            ["Antarktika", "Kältester Kontinent"],
-            ["Afrika", "Zweitgrößter Kontinent"]
+            [
+              "Asien",
+              "Größter Kontinent"
+            ],
+            [
+              "Australien",
+              "Kleinstes Land & Kontinent"
+            ],
+            [
+              "Antarktika",
+              "Kältester Kontinent"
+            ],
+            [
+              "Afrika",
+              "Zweitgrößter Kontinent"
+            ]
           ],
           "points": 4
         }
@@ -260,7 +789,10 @@
             "Chloroplasten",
             "Mitochondrien"
           ],
-          "correct": [0, 2],
+          "correct": [
+            0,
+            2
+          ],
           "points": 2
         }
       ]

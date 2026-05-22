@@ -468,13 +468,45 @@
       </div>
       <div v-else class="templates-overview">
         <div class="section-actions-header">
-          <h2>English Grammar Templates Library</h2>
-          <p class="subtitle">Quickly assign pre-made exercises to your classes. You can edit worksheets after cloning.</p>
+          <h2>Templates Library 📚</h2>
+          <p class="subtitle">Select a subject to browse high-quality pre-made worksheets. You can edit worksheets after cloning.</p>
         </div>
 
-        <div class="templates-grid">
-          <div v-for="tpl in templates" :key="tpl.id" class="template-card card glass">
-            <div class="template-tag">English Grammar</div>
+        <!-- Subject tabs selector -->
+        <div class="subject-tabs-wrapper">
+          <div class="subject-row">
+            <button 
+              v-for="sub in ['Englisch', 'Mathematik', 'Deutsch']" 
+              :key="sub" 
+              @click="selectedTemplateSubject = sub"
+              :class="['subject-tab-btn', { active: selectedTemplateSubject === sub }]"
+            >
+              <span class="subject-icon">{{ getSubjectIcon(sub) }}</span>
+              <span class="subject-name">{{ sub }}</span>
+            </button>
+          </div>
+          <div class="subject-row">
+            <button 
+              v-for="sub in ['Geographie', 'Biologie', 'Chemie', 'Physik']" 
+              :key="sub" 
+              @click="selectedTemplateSubject = sub"
+              :class="['subject-tab-btn', { active: selectedTemplateSubject === sub }]"
+            >
+              <span class="subject-icon">{{ getSubjectIcon(sub) }}</span>
+              <span class="subject-name">{{ sub }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="filteredTemplates.length === 0" class="empty-state card glass">
+          <div class="empty-icon">📝</div>
+          <h3>No Templates Found</h3>
+          <p>No templates have been created for "{{ selectedTemplateSubject }}" yet.</p>
+        </div>
+
+        <div v-else class="templates-grid">
+          <div v-for="tpl in filteredTemplates" :key="tpl.id" class="template-card card glass">
+            <div class="template-tag">{{ tpl.subject || 'Allgemein' }}</div>
             <h3>{{ tpl.title }}</h3>
             <p class="template-desc">{{ tpl.description }}</p>
             <div class="template-meta">
@@ -486,7 +518,7 @@
             </button>
           </div>
         </div>
-        </div>
+      </div>
     </div>
 
     <!-- Administrator Console Modal -->
@@ -1221,6 +1253,26 @@ const newStudentForm = ref({ name: '', email: '', role: 'student' })
 
 // Templates state
 const templates = ref([])
+const templateSubjects = ['Englisch', 'Mathematik', 'Deutsch', 'Geographie', 'Biologie', 'Chemie', 'Physik']
+const selectedTemplateSubject = ref('Englisch')
+
+const filteredTemplates = computed(() => {
+  return templates.value.filter(tpl => tpl.subject === selectedTemplateSubject.value)
+})
+
+const getSubjectIcon = (subject) => {
+  const icons = {
+    'Englisch': '🇬🇧',
+    'Mathematik': '📐',
+    'Deutsch': '📚',
+    'Geographie': '🌍',
+    'Biologie': '🧬',
+    'Chemie': '🧪',
+    'Physik': '⚛️'
+  }
+  return icons[subject] || '📝'
+}
+
 
 // Worksheet filter refs
 const worksheetSearch = ref('')
@@ -2514,5 +2566,177 @@ const importCSVStudents = async () => {
   cursor: pointer;
   min-height: auto;
   box-shadow: none;
+}
+
+/* Templates Tab Styling */
+.templates-overview {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.subject-tabs-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 24px 0;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(8px);
+}
+
+.subject-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.subject-tab-btn {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.subject-tab-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  background-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.subject-tab-btn.active {
+  background: linear-gradient(135deg, var(--primary), hsl(var(--primary-hue), 85%, 65%));
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+.subject-icon {
+  font-size: 18px;
+}
+
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.template-card {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  height: 100%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.template-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-premium);
+  border-color: var(--primary);
+}
+
+.template-tag {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+}
+
+.template-card:hover .template-tag {
+  background: var(--primary);
+  color: white;
+}
+
+.template-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+
+.template-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 20px;
+  flex-grow: 1;
+}
+
+.template-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+  margin-bottom: 16px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-template-action {
+  width: 100%;
+  justify-content: center;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  text-align: center;
+  margin-top: 24px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  background: transparent;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.8;
+}
+
+.empty-state h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  max-width: 400px;
 }
 </style>
