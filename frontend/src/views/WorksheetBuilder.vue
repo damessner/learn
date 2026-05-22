@@ -3,9 +3,15 @@
     <header class="builder-header glass">
       <div class="header-left">
         <router-link to="/teacher" class="btn btn-secondary btn-back">← Back</router-link>
-        <h1>{{ isEditing ? 'Edit Worksheet' : 'New Worksheet' }}</h1>
+        <h1 class="clickable-title" @click="openSettings" title="Click to edit document settings">
+          {{ isEditing ? 'Edit Worksheet' : 'New Worksheet' }}
+          <span class="title-settings-icon">⚙️</span>
+        </h1>
       </div>
       <div class="header-right">
+        <button @click="openAiPanel" class="btn btn-secondary btn-ai-wand" title="AI Worksheet Draft">
+          🪄 AI
+        </button>
         <button @click="saveWorksheet(false)" :disabled="saving" class="btn btn-secondary">Save Draft</button>
         <button @click="openLivePreview" class="btn btn-secondary">
           👀 Live Preview
@@ -14,19 +20,36 @@
       </div>
     </header>
 
-    <div class="builder-layout" :class="{ 'left-collapsed': !leftExpanded, 'right-collapsed': !rightExpanded }">
+    <div class="builder-layout" :class="{ 'right-collapsed': !rightExpanded }">
       <!-- Left Column: Block Toolbox -->
-      <div class="sidebar-panel card toolbox-panel" :class="{ collapsed: !leftExpanded }" @click="!leftExpanded && (leftExpanded = true)">
+      <div class="sidebar-panel card toolbox-panel">
         <div class="panel-header-toggle">
-          <h3 v-if="leftExpanded" class="panel-title">🛠️ Toolbox</h3>
-          <button class="btn-collapse" @click.stop="leftExpanded = !leftExpanded" :title="leftExpanded ? 'Collapse Panel' : 'Expand Panel'">
-            {{ leftExpanded ? '◀' : '▶' }}
-          </button>
+          <h3 class="panel-title">🛠️ Toolbox</h3>
         </div>
 
-        <div class="toolbox-content" :class="{ 'is-collapsed': !leftExpanded }">
-          <!-- Add Question / Content -->
-          <div class="add-blocks-section">
+        <div class="toolbox-content">
+          <!-- Mode Tabs Selector -->
+          <div class="toolbox-mode-selector">
+            <button 
+              type="button"
+              class="toolbox-mode-btn" 
+              :class="{ active: worksheetType === 'manual' }" 
+              @click="worksheetType = 'manual'"
+            >
+              📝 Standard
+            </button>
+            <button 
+              type="button"
+              class="toolbox-mode-btn" 
+              :class="{ active: worksheetType === 'vocab' }" 
+              @click="worksheetType = 'vocab'"
+            >
+              🗂️ Vocabulary
+            </button>
+          </div>
+
+          <!-- Add Question / Content (Standard Mode) -->
+          <div v-if="worksheetType === 'manual'" class="add-blocks-section">
             <h3 v-if="leftExpanded">Presentation</h3>
             <div class="block-buttons-grid">
               <button @click="addBlock('text')" class="btn-add-block" title="Display text, instructions, or reading material">
@@ -90,9 +113,17 @@
             </div>
           </div>
 
-          <!-- Vocab / Gamify Sections -->
-          <div class="gamify-sections mt-4">
-            <h3 style="margin-bottom: 8px;" v-if="leftExpanded">Gamified Learning</h3>
+          <!-- Vocab / Gamify Sections (Vocabulary Mode) -->
+          <div v-else-if="worksheetType === 'vocab'" class="gamify-sections">
+            <h3 style="margin-top: 0; margin-bottom: 8px;" v-if="leftExpanded">Vocab Wizards</h3>
+            <button @click="openVocabWizard('standard')" class="btn btn-secondary w-full mb-2" title="Generate standard exercises from a vocabulary list">
+              <span>🪄</span><span v-if="leftExpanded"> Std Vocab Course</span>
+            </button>
+            <button @click="openVocabWizard('neuro')" class="btn btn-secondary w-full mb-2" style="background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;" title="Generate a full gamified neuro-learning course from a vocab list">
+              <span>🪄</span><span v-if="leftExpanded"> Neuro Vocab Course</span>
+            </button>
+
+            <h3 class="mt-4" style="margin-bottom: 8px;" v-if="leftExpanded">Gamified Learning</h3>
             <div class="block-buttons-grid">
               <button @click="addBlock('flashcards')" class="btn-add-block" style="border-color:var(--primary)" title="Learn terms step-by-step with flip cards">
                 <span class="btn-icon">🗂️</span>
@@ -125,12 +156,6 @@
                 <span class="info-icon" v-if="leftExpanded">ℹ️</span>
               </button>
             </div>
-            <button @click="openVocabWizard('standard')" class="btn btn-secondary w-full mt-2" title="Generate standard exercises from a vocabulary list">
-              <span>🪄</span><span v-if="leftExpanded"> Std Vocab Course</span>
-            </button>
-            <button @click="openVocabWizard('neuro')" class="btn btn-secondary w-full mt-2" style="background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;" title="Generate a full gamified neuro-learning course from a vocab list">
-              <span>🪄</span><span v-if="leftExpanded"> Neuro Vocab Course</span>
-            </button>
           </div>
         </div>
       </div>
@@ -455,70 +480,91 @@
       <!-- Right Column: Settings, STEM, AI Copilot -->
       <div class="sidebar-panel card settings-panel" :class="{ collapsed: !rightExpanded }" @click="!rightExpanded && (rightExpanded = true)">
         <div class="panel-header-toggle">
-          <h3 v-if="rightExpanded" class="panel-title">⚙️ Document Settings</h3>
+          <div v-if="rightExpanded" class="panel-tabs">
+            <button 
+              type="button" 
+              class="panel-tab-btn" 
+              :class="{ active: rightTab === 'settings' }" 
+              @click.stop="rightTab = 'settings'"
+            >
+              ⚙️ Settings
+            </button>
+            <button 
+              type="button" 
+              class="panel-tab-btn" 
+              :class="{ active: rightTab === 'ai' }" 
+              @click.stop="rightTab = 'ai'"
+            >
+              🪄 AI Generator
+            </button>
+          </div>
+          <h3 v-else class="panel-title">⚙️/🪄</h3>
           <button class="btn-collapse" @click.stop="rightExpanded = !rightExpanded" :title="rightExpanded ? 'Collapse Panel' : 'Expand Panel'">
             {{ rightExpanded ? '▶' : '◀' }}
           </button>
         </div>
 
         <div v-if="rightExpanded" class="settings-content">
-          <!-- General Settings -->
-          <h3>General Settings</h3>
-          <div class="form-group">
-            <label>Builder Mode</label>
-            <select v-model="builderMode">
-              <option value="basic">Basic</option>
-              <option value="advanced">Advanced</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Worksheet Title</label>
-            <input type="text" v-model="sheet.title" placeholder="e.g. Present Perfect Practice" />
-          </div>
-          <div class="form-group">
-            <label>Description / Instructions</label>
-            <textarea v-model="sheet.description" placeholder="Instructions for students..." rows="3"></textarea>
-          </div>
-          <div class="form-group-row">
+          <!-- Tab 1: Settings Content -->
+          <div v-if="rightTab === 'settings'">
+            <!-- General Settings -->
+            <h3>General Settings</h3>
             <div class="form-group">
-              <label>Subject</label>
-              <input type="text" v-model="sheet.subject" placeholder="e.g. English" />
+              <label>Builder Mode</label>
+              <select v-model="builderMode">
+                <option value="basic">Basic</option>
+                <option value="advanced">Advanced</option>
+              </select>
             </div>
-            <div class="form-group" v-if="builderMode === 'advanced'">
-              <label>Grade Level</label>
-              <input type="text" v-model="sheet.grade_level" placeholder="e.g. 3a" />
+            <div class="form-group">
+              <label>Worksheet Title</label>
+              <input type="text" v-model="sheet.title" placeholder="e.g. Present Perfect Practice" />
             </div>
-            <div class="form-group" v-if="builderMode === 'advanced'">
-              <label>Tags</label>
-              <input type="text" v-model="sheet.tags" placeholder="e.g. grammar, vocabulary, beginner" />
+            <div class="form-group">
+              <label>Description / Instructions</label>
+              <textarea v-model="sheet.description" placeholder="Instructions for students..." rows="3"></textarea>
             </div>
-          </div>
-          <div class="form-group" v-if="builderMode === 'advanced'">
-            <label>Rubric (one criterion per line: name|weight|description)</label>
-            <textarea v-model="sheet.rubricText" rows="3" placeholder="Accuracy|50|Correctness of answers&#10;Clarity|25|Clear explanations"></textarea>
-          </div>
-
-          <!-- STEM Quick Presets — collapsible accordion -->
-          <div class="stem-helper-section card glass mt-4">
-            <button class="stem-accordion-toggle" @click="stemOpen = !stemOpen">
-              <span>📐 STEM Quick Presets</span>
-              <span class="stem-chevron" :class="{ open: stemOpen }">▾</span>
-            </button>
-            <transition name="stem-expand">
-              <div v-if="stemOpen" class="stem-accordion-body">
-                <p class="field-hint mb-2">Click to insert preformatted LaTeX math/science exercises:</p>
-                <div class="stem-presets">
-                  <button @click="insertSTEMPreset('quadratic')" class="btn btn-secondary btn-sm">📐 Math: Quadratic Equation (Gap Fill)</button>
-                  <button @click="insertSTEMPreset('physics_velocity')" class="btn btn-secondary btn-sm">⚡ Physics: Velocity & Units (Short Answer)</button>
-                  <button @click="insertSTEMPreset('chemistry_reaction')" class="btn btn-secondary btn-sm">🧪 Chem: Reaction Balancing (Gap Fill)</button>
-                  <button @click="insertSTEMPreset('pythagorean')" class="btn btn-secondary btn-sm">📐 Geometry: Pythagorean (Short Answer)</button>
-                </div>
+            <div class="form-group-row">
+              <div class="form-group">
+                <label>Subject</label>
+                <input type="text" v-model="sheet.subject" placeholder="e.g. English" />
               </div>
-            </transition>
+              <div class="form-group" v-if="builderMode === 'advanced'">
+                <label>Grade Level</label>
+                <input type="text" v-model="sheet.grade_level" placeholder="e.g. 3a" />
+              </div>
+              <div class="form-group" v-if="builderMode === 'advanced'">
+                <label>Tags</label>
+                <input type="text" v-model="sheet.tags" placeholder="e.g. grammar, vocabulary, beginner" />
+              </div>
+            </div>
+            <div class="form-group" v-if="builderMode === 'advanced'">
+              <label>Rubric (one criterion per line: name|weight|description)</label>
+              <textarea v-model="sheet.rubricText" rows="3" placeholder="Accuracy|50|Correctness of answers&#10;Clarity|25|Clear explanations"></textarea>
+            </div>
+
+            <!-- STEM Quick Presets — collapsible accordion -->
+            <div class="stem-helper-section card glass mt-4">
+              <button class="stem-accordion-toggle" @click="stemOpen = !stemOpen">
+                <span>📐 STEM Quick Presets</span>
+                <span class="stem-chevron" :class="{ open: stemOpen }">▾</span>
+              </button>
+              <transition name="stem-expand">
+                <div v-if="stemOpen" class="stem-accordion-body">
+                  <p class="field-hint mb-2">Click to insert preformatted LaTeX math/science exercises:</p>
+                  <div class="stem-presets">
+                    <button @click="insertSTEMPreset('quadratic')" class="btn btn-secondary btn-sm">📐 Math: Quadratic Equation (Gap Fill)</button>
+                    <button @click="insertSTEMPreset('physics_velocity')" class="btn btn-secondary btn-sm">⚡ Physics: Velocity & Units (Short Answer)</button>
+                    <button @click="insertSTEMPreset('chemistry_reaction')" class="btn btn-secondary btn-sm">🧪 Chem: Reaction Balancing (Gap Fill)</button>
+                    <button @click="insertSTEMPreset('pythagorean')" class="btn btn-secondary btn-sm">📐 Geometry: Pythagorean (Short Answer)</button>
+                  </div>
+                </div>
+              </transition>
+            </div>
           </div>
 
-          <!-- AI Draft Section -->
-          <div class="ai-section mt-4">
+          <!-- Tab 2: AI Content -->
+          <div v-else-if="rightTab === 'ai'" class="ai-section">
             <h3>AI Worksheet Draft</h3>
             <button @click="openWizardModal" class="btn btn-primary" style="width: 100%; margin-bottom: 12px; font-weight: bold; background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;">
               🪄 Launch AI Wizard
@@ -552,9 +598,8 @@
         </div>
 
         <div v-else class="panel-collapsed-icons">
-          <div class="collapsed-icon-group" title="General Settings">⚙️</div>
-          <div class="collapsed-icon-group" title="STEM Presets">📐</div>
-          <div class="collapsed-icon-group" title="AI Copilot">🪄</div>
+          <div class="collapsed-icon-group" title="General Settings" @click="rightTab = 'settings'">⚙️</div>
+          <div class="collapsed-icon-group" title="AI Copilot" @click="rightTab = 'ai'">🪄</div>
         </div>
       </div>
     </div>
@@ -724,48 +769,14 @@
       </div>
     </div>
 
-    
-    <!-- Vocabulary Course Wizard Modal -->
-    <div v-if="showVocabWizard" class="wizard-modal-overlay">
-      <div class="wizard-modal-card" style="height: auto; max-height: 80vh;">
-        <div v-if="vocabWizardLoading" class="wizard-loading-container">
-          <div class="wizard-spinner-emoji">🪄</div>
-          <h3>Generating Course...</h3>
-          <p>Weaving your vocabulary into a gamified sequence.</p>
-          <div class="wizard-progress-bar"><div class="wizard-progress-indefinite"></div></div>
-        </div>
-        <template v-else>
-          <header class="modal-header">
-            <h2>✨ Generate {{ vocabWizardType === 'standard' ? 'Standard' : 'Neuro-Gamified' }} Course</h2>
-            <button @click="showVocabWizard = false" class="btn-close">&times;</button>
-          </header>
-          <div class="wizard-scroll-container">
-            <p style="margin-bottom: 16px;">Paste your vocabulary list below. We will automatically generate a progressive sequence of 4-5 gamified exercises to teach these words.</p>
-            <div class="form-group">
-              <label>Vocabulary List (Format: english = Deutsch)</label>
-              <textarea 
-                v-model="vocabWizardRaw" 
-                rows="8" 
-                class="wizard-textarea" 
-                placeholder="apple = Apfel\nbanana = Banane\nto go = gehen"
-              ></textarea>
-            </div>
-            <div class="mt-4" style="text-align: right;">
-              <button @click="generateVocabCourse" class="btn btn-primary btn-lg btn-generate-magic">🪄 Generate Magic Worksheet</button>
-            </div>
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <!-- AI Generator Wizard Modal Overlay -->
+    <!-- Unified Worksheet Creation Wizard Modal Overlay -->
     <div v-if="showStartWizard" class="wizard-modal-overlay">
       <div class="wizard-modal-card">
         <!-- Loading State Overlay -->
-        <div v-if="aiLoading" class="wizard-loading-container">
+        <div v-if="aiLoading || vocabWizardLoading" class="wizard-loading-container">
           <div class="wizard-spinner-emoji">🪄</div>
-          <h3>Weaving Your Worksheet...</h3>
-          <p>Our AI is generating exercises based on your specifications. Please hold on.</p>
+          <h3>{{ vocabWizardLoading ? 'Generating Course...' : 'Weaving Your Worksheet...' }}</h3>
+          <p>{{ vocabWizardLoading ? 'Weaving your vocabulary into a gamified sequence. Please hold on.' : 'Our AI is generating exercises based on your specifications. Please hold on.' }}</p>
           <div class="wizard-progress-bar">
             <div class="wizard-progress-indefinite"></div>
           </div>
@@ -778,32 +789,38 @@
           </header>
 
           <div class="wizard-scroll-container">
-            <!-- Phase 1: Choice between Manual or Wizard -->
+            <!-- Phase 1: Choice between Manual, Vocabulary, or AI -->
             <div v-if="wizardTab === 'choice'" class="wizard-choice-stage">
               <h3 class="stage-title">How would you like to build this worksheet?</h3>
               <p class="stage-subtitle">Choose a path to get started with your new worksheet.</p>
               
               <div class="choice-cards-grid">
-                <div @click="showStartWizard = false" class="choice-card hover-glow">
-                  <div class="choice-icon">🛠️</div>
-                  <h4>Create Manually</h4>
-                  <p>Start with a blank canvas and add exercises step-by-step from the editor.</p>
-                  <button class="btn btn-secondary">Start Blank</button>
+                <div @click="selectStartPath('manual')" class="choice-card hover-glow">
+                  <div class="choice-icon">📝</div>
+                  <h4>Standard / Manual</h4>
+                  <p>Start with a blank canvas and add standard exercises like gap-fill, choice, or matching.</p>
+                  <button class="btn btn-secondary">Create Standard</button>
                 </div>
 
-                <div @click="wizardTab = 'wizard'" class="choice-card hover-glow active-card">
+                <div @click="selectStartPath('vocab')" class="choice-card hover-glow">
+                  <div class="choice-icon">🗂️</div>
+                  <h4>Vocabulary Course</h4>
+                  <p>Build vocabulary exercises, or paste a word list to auto-generate a gamified learning sequence.</p>
+                  <button class="btn btn-secondary">Create Vocabulary</button>
+                </div>
+
+                <div @click="selectStartPath('ai')" class="choice-card hover-glow active-card">
                   <div class="choice-icon">🪄</div>
                   <h4>AI Worksheet Wizard</h4>
-                  <p>Generate a complete worksheet with custom exercises in seconds using AI.</p>
-                  <button class="btn btn-primary">Open Wizard</button>
+                  <p>Generate a complete worksheet with custom exercises in seconds using AI prompting.</p>
+                  <button class="btn btn-primary">Open AI Wizard</button>
                 </div>
               </div>
             </div>
 
-            <!-- Phase 2: Configuration Wizard -->
+            <!-- Phase 2: AI Configuration Wizard -->
             <div v-else-if="wizardTab === 'wizard'" class="wizard-config-stage">
               <div class="wizard-form">
-                
                 <div class="form-section">
                   <h4>1. General Information</h4>
                   <div class="form-group">
@@ -991,9 +1008,83 @@
                     </button>
                   </div>
                 </div>
-
               </div>
             </div>
+
+            <!-- Phase 3: Vocabulary Course Setup Choice -->
+            <div v-else-if="wizardTab === 'vocab_setup'" class="wizard-config-stage">
+              <div class="wizard-form">
+                <div class="form-section">
+                  <h4>✨ Create Vocabulary Worksheet</h4>
+                  <p class="section-subtitle">Choose how you'd like to construct your vocabulary course:</p>
+                  
+                  <div class="choice-cards-grid mb-4" style="grid-template-columns: 1fr 1fr; max-width: 600px; margin: 0 auto;">
+                    <div @click="startBlankVocab" class="choice-card hover-glow" style="padding: 20px 16px;">
+                      <div class="choice-icon" style="font-size: 32px; margin-bottom: 8px;">📝</div>
+                      <h4 style="font-size: 15px; margin-bottom: 6px;">Start Blank Course</h4>
+                      <p style="font-size: 12px; margin-bottom: 12px;">Create a blank canvas to manually add vocabulary and gamified modules.</p>
+                      <button class="btn btn-secondary btn-sm" style="pointer-events: none;">Start Blank</button>
+                    </div>
+
+                    <div @click="vocabWizardType = 'standard'; vocabWizardRaw = ''; wizardTab = 'vocab_paste'" class="choice-card hover-glow active-card" style="padding: 20px 16px;">
+                      <div class="choice-icon" style="font-size: 32px; margin-bottom: 8px;">🪄</div>
+                      <h4 style="font-size: 15px; margin-bottom: 6px;">Paste Vocab List</h4>
+                      <p style="font-size: 12px; margin-bottom: 12px;">Generate a full standard or neuro-gamified course from a list of words.</p>
+                      <button class="btn btn-primary btn-sm" style="pointer-events: none;">Paste List</button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="wizard-footer-settings">
+                  <div class="wizard-form-actions" style="margin-left: auto;">
+                    <button type="button" @click="wizardTab = 'choice'" class="btn btn-secondary">Back</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Phase 4: Paste Vocabulary List -->
+            <div v-else-if="wizardTab === 'vocab_paste'" class="wizard-config-stage">
+              <div class="wizard-form">
+                <div class="form-section">
+                  <h4>Paste Vocabulary List</h4>
+                  <p class="section-subtitle">We will automatically generate a progressive sequence of gamified exercises to teach these words.</p>
+                  
+                  <div class="form-group">
+                    <label>Vocabulary List (Format: English = Deutsch)</label>
+                    <textarea 
+                      v-model="vocabWizardRaw" 
+                      rows="8" 
+                      class="wizard-textarea" 
+                      placeholder="apple = Apfel&#10;banana = Banane&#10;to go = gehen"
+                    ></textarea>
+                  </div>
+                  
+                  <div class="form-group mt-3">
+                    <label>Generator Mode</label>
+                    <select v-model="vocabWizardType" class="wizard-select">
+                      <option value="standard">Standard (Generated instantly in-browser)</option>
+                      <option value="neuro">Neuro-Gamified (Powered by Gemini AI)</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="wizard-footer-settings">
+                  <div class="wizard-form-actions">
+                    <button type="button" @click="vocabWizardType === 'standard' ? (wizardTab = 'vocab_setup') : (wizardTab = 'choice')" class="btn btn-secondary">Back</button>
+                    <button 
+                      type="button" 
+                      @click="generateVocabCourse" 
+                      :disabled="vocabWizardLoading" 
+                      class="btn btn-primary btn-generate-magic"
+                    >
+                      🪄 Generate Magic Worksheet
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </template>
       </div>
@@ -1032,6 +1123,45 @@ const builderMode = ref('basic')
 const stemOpen = ref(false)
 const leftExpanded = ref(true)
 const rightExpanded = ref(true)
+const worksheetType = ref('manual')
+const rightTab = ref('settings')
+
+const openSettings = () => {
+  if (rightExpanded.value && rightTab.value === 'settings') {
+    rightExpanded.value = false
+  } else {
+    rightTab.value = 'settings'
+    rightExpanded.value = true
+  }
+}
+
+const openAiPanel = () => {
+  if (rightExpanded.value && rightTab.value === 'ai') {
+    rightExpanded.value = false
+  } else {
+    rightTab.value = 'ai'
+    rightExpanded.value = true
+  }
+}
+
+const selectStartPath = (path) => {
+  if (path === 'manual') {
+    worksheetType.value = 'manual'
+    showStartWizard.value = false
+  } else if (path === 'vocab') {
+    worksheetType.value = 'vocab'
+    wizardTab.value = 'vocab_setup'
+  } else if (path === 'ai') {
+    worksheetType.value = 'manual'
+    wizardTab.value = 'wizard'
+  }
+}
+
+const startBlankVocab = () => {
+  worksheetType.value = 'vocab'
+  sheet.value.blocks = []
+  showStartWizard.value = false
+}
 
 // AI Wizard State Variables
 const showStartWizard = ref(false)
@@ -1121,6 +1251,11 @@ onMounted(async () => {
     showStartWizard.value = true
     wizardTab.value = 'choice'
   }
+  
+  // Auto-detect worksheet mode based on existing blocks
+  const gamifiedTypes = ['flashcards', 'memory_match', 'word_scramble', 'semantic_sorter', 'contextual_dialogue', 'flow_challenge', 'vocabulary']
+  const hasVocabBlocks = sheet.value.blocks.some(b => gamifiedTypes.includes(b.type))
+  worksheetType.value = hasVocabBlocks ? 'vocab' : 'manual'
 })
 
 // Block creation helper
@@ -1485,15 +1620,16 @@ const updateCategoryWords = (e, cat) => {
 }
 
 // Vocabulary Course Wizard Logic
-const showVocabWizard = ref(false)
 const vocabWizardType = ref('standard')
 const vocabWizardRaw = ref('')
 const vocabWizardLoading = ref(false)
 
 const openVocabWizard = (type) => {
+  worksheetType.value = 'vocab'
   vocabWizardType.value = type
   vocabWizardRaw.value = ''
-  showVocabWizard.value = true
+  wizardTab.value = 'vocab_paste'
+  showStartWizard.value = true
 }
 
 const generateVocabCourse = async () => {
@@ -1560,13 +1696,13 @@ const generateVocabCourse = async () => {
       pairs: JSON.parse(JSON.stringify(pairs))
     })
 
-    showVocabWizard.value = false
+    showStartWizard.value = false
     vocabWizardLoading.value = false
   } else {
     // Neuro-Gamified (Needs Backend / Gemini API)
     const token = localStorage.getItem('token')
     try {
-      const resp = await fetch('http://localhost:3000/api/worksheets/ai/neuro-vocab', {
+      const resp = await fetch('/api/worksheets/ai/neuro-vocab', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1580,7 +1716,7 @@ const generateVocabCourse = async () => {
       if (!resp.ok) throw new Error(data?.error || 'AI generation failed')
       
       sheet.value.blocks = data.blocks || []
-      showVocabWizard.value = false
+      showStartWizard.value = false
     } catch (err) {
       alert(err.message)
     } finally {
@@ -2794,9 +2930,9 @@ const submitLocalPreview = () => {
 
 .choice-cards-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  max-width: 680px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 860px;
   margin: 0 auto;
 }
 
@@ -3222,5 +3358,99 @@ const submitLocalPreview = () => {
   .settings-panel {
     order: 3;
   }
+}
+.clickable-title {
+  cursor: pointer;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.clickable-title:hover {
+  color: var(--primary);
+}
+.title-settings-icon {
+  font-size: 16px;
+  opacity: 0.6;
+  transition: transform 0.3s ease;
+}
+.clickable-title:hover .title-settings-icon {
+  transform: rotate(45deg);
+  opacity: 1;
+}
+
+.btn-ai-wand {
+  background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+  color: white !important;
+  border: none !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.btn-ai-wand:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.toolbox-mode-selector {
+  display: flex;
+  background: var(--bg-hover);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-color);
+}
+.toolbox-mode-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.toolbox-mode-btn.active {
+  background: var(--bg-main);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+.toolbox-mode-btn:hover:not(.active) {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.panel-tabs {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+}
+.panel-tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+.panel-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.panel-tab-btn:hover:not(.active) {
+  color: var(--text-main);
 }
 </style>
