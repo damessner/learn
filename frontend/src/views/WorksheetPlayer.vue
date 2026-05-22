@@ -471,9 +471,13 @@ const submitRating = async (stars) => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ rating: stars })
     })
-    if (resp.ok) myRating.value = stars
+    if (resp.ok) {
+      myRating.value = stars
+    } else {
+      console.warn('Rating could not be saved (server error).')
+    }
   } catch {
-    // rating is non-critical; ignore errors
+    console.warn('Rating could not be saved (network error).')
   }
 }
 

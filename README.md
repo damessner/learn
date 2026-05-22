@@ -303,5 +303,5 @@ Worksheets and courses carry two separate rating aggregates: **student ratings**
 
 Query parameters for `GET /api/library/worksheets`:
 - `search` — full-text filter on title / subject
-- `sortBy` — `title` | `student_rating` | `teacher_rating` (default: `title`)
+- `sortBy` — `title` | `student_rating` | `teacher_rating` (default: `student_rating`)
 - `order` — `asc` | `desc` (default: `asc`)

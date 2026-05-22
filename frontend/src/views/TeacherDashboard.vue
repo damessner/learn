@@ -495,14 +495,14 @@
           v-model="librarySearch"
           @input="fetchLibrary"
           placeholder="Search title, subject, tags..."
-          style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);"
+          class="library-filter-input"
         />
-        <select v-model="librarySortBy" @change="fetchLibrary" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+        <select v-model="librarySortBy" @change="fetchLibrary" class="library-filter-select">
           <option value="student_rating">Sort by Student Rating</option>
           <option value="teacher_rating">Sort by Teacher Rating</option>
           <option value="title">Sort by Title</option>
         </select>
-        <select v-model="librarySortOrder" @change="fetchLibrary" style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+        <select v-model="librarySortOrder" @change="fetchLibrary" class="library-filter-select">
           <option value="desc">Descending</option>
           <option value="asc">Ascending</option>
         </select>
@@ -2185,7 +2185,10 @@ const publishWorksheetToLibrary = async (worksheetId) => {
     })
     if (!res.ok) throw new Error('Publish failed')
     const ws = worksheets.value.find(w => w.id === worksheetId)
-    if (ws) { ws.in_library = 1; ws.is_published = 1 }
+    if (ws) {
+      ws.in_library = 1
+      ws.is_published = 1
+    }
     alert('Worksheet published to system library!')
   } catch (err) {
     alert(err.message)
@@ -3089,5 +3092,23 @@ const importCSVStudents = async () => {
 
 .library-card-actions {
   margin-top: auto;
+}
+
+.library-filter-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.library-filter-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
 }
 </style>
