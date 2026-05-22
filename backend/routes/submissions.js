@@ -167,7 +167,7 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
         throw error;
       }
       if (retryPolicy === 'incorrect_half' && attemptsSoFar >= 2) {
-        const error = new Error('Incorrect-only retry allows at most two attempts.');
+        const error = new Error('Incorrect-only retry allows at most 2 attempts.');
         error.statusCode = 409;
         throw error;
       }

@@ -234,7 +234,7 @@ onMounted(() => {
     unlockedQuestions.value = new Set(normalizedQuestions.value.map((_, idx) => idx))
   }
   window.addEventListener('message', onPlayerMessage)
-  pollTimer = setInterval(requestCurrentTime, 1000)
+  pollTimer = setInterval(requestCurrentTime, 2000)
 })
 
 onUnmounted(() => {

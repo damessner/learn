@@ -368,7 +368,7 @@
                   placeholder="e.g. She ((has gone)) to school already. We ((have played)) basketball." 
                   rows="3"
                 ></textarea>
-                <span class="field-hint">Student sees: She ______ to school already. Correct answer is "has gone".</span>
+                <span class="field-hint">Student sees: She ______ to school already. Correct answer is "has gone" (multi-word answers are allowed).</span>
                 <div v-if="block.template && (block.template.includes('$') || block.template.includes('(('))" class="math-preview mt-2">
                   <span class="preview-label">✨ Template Live Preview:</span>
                   <div class="preview-box" v-math="getGapFillPreview(block.template)"></div>
