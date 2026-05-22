@@ -155,6 +155,12 @@ router.post('/login', loginLimiter, (req, res) => {
 // We verify it and create/update the user in our DB.
 router.post('/microsoft', loginLimiter, async (req, res) => {
   try {
+    const db = getDB();
+    const authModeSetting = db.prepare("SELECT value FROM settings WHERE key = 'auth_mode'").get();
+    if (!authModeSetting || authModeSetting.value === 'local') {
+      return res.status(400).json({ error: 'Microsoft login is disabled. Please use local login.' });
+    }
+
     const {
       idToken,
       fallbackName,
@@ -186,8 +192,6 @@ router.post('/microsoft', loginLimiter, async (req, res) => {
     }
 
     const { name, email, msId } = profile;
-
-    const db = getDB();
 
     let user = db.prepare('SELECT * FROM users WHERE ms_id = ?').get(msId);
     if (!user && email) {
@@ -372,6 +376,9 @@ router.put('/users/:id', requireAuth, requireRole('admin', 'teacher'), (req, res
     // Role protection
     if (targetUser.role === 'admin' && req.user.userId !== targetUser.id && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized to edit admin user' });
+    }
+    if (req.user.role === 'teacher' && targetUser.role !== 'student') {
+      return res.status(403).json({ error: 'Teachers can only modify student accounts' });
     }
     if (role && role !== targetUser.role && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only admins can modify user roles' });
@@ -571,7 +578,8 @@ router.post('/register-teacher', (req, res) => {
   try {
     const db = getDB();
     const tokenRow = db.prepare("SELECT value FROM settings WHERE key = 'teacher_registration_token'").get();
-    if (!tokenRow || tokenRow.value !== token) {
+    const tokenValid = tokenRow && safeSecretEquals(tokenRow.value, token);
+    if (!tokenValid) {
       return res.status(401).json({ error: 'Invalid or expired registration token' });
     }
 
