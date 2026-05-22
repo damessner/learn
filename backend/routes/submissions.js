@@ -199,13 +199,14 @@ router.post('/assignment/:assignmentId/submit', requireAuth, (req, res) => {
 
 // ─── Scoring engine ───────────────────────────────────────────────────────────
 function scoreAnswers(blocks, answers) {
+  const answerMap = answers && typeof answers === 'object' ? answers : {};
   let score = 0;
   let maxScore = 0;
   const feedback = {};
 
   for (const block of blocks) {
     const blockPoints = block.points || 0;
-    const studentAnswer = answers[block.id];
+    const studentAnswer = answerMap[block.id];
 
     if (!blockPoints || !block.id) continue;
     maxScore += blockPoints;

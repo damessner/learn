@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { getDB } = require('../db/init');
-const { requireAuth } = require('./auth');
+const { requireAuth, requireRole } = require('./auth');
 
 const router = express.Router();
 

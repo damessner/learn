@@ -18,6 +18,10 @@ const { initDB } = require('./db/init');
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
+const rawUploadDir = process.env.UPLOAD_DIR || './uploads';
+const uploadDir = path.isAbsolute(rawUploadDir)
+  ? rawUploadDir
+  : path.resolve(__dirname, rawUploadDir);
 
 // Security headers
 app.use(helmet({
@@ -75,7 +79,7 @@ const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
 app.use(limiter);
 
 // Serve uploaded media files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+app.use('/uploads', express.static(uploadDir, {
   maxAge: '7d',
   etag: true
 }));
