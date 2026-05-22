@@ -320,6 +320,9 @@ router.get('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) =>
   const roleFilter = req.query.role ? String(req.query.role).trim().toLowerCase() : '';
   const validRole = ['student', 'teacher', 'admin'].includes(roleFilter) ? roleFilter : null;
   const hasSearch = search.length > 0;
+  if (req.user.role !== 'admin' && validRole && validRole !== 'student') {
+    return res.status(403).json({ error: 'Teachers can only list student accounts' });
+  }
 
   const whereParts = [];
   const params = [];

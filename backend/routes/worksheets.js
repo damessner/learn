@@ -59,6 +59,7 @@ router.post('/ai/neuro-vocab', requireAuth, requireRole('teacher', 'admin'), asy
 
 // ─── Text to Speech (TTS) Generation ───────────────────────────────────────────
 router.post('/tts', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
+  let selectedEngine = 'cloud';
   try {
     const { text, language, engine, voice } = req.body || {};
     if (!text || !String(text).trim()) {
@@ -68,6 +69,7 @@ router.post('/tts', requireAuth, requireRole('teacher', 'admin'), async (req, re
     const ttsText = String(text).trim();
     const ttsLanguage = language || 'de-AT';
     const ttsEngine = engine || 'cloud';
+    selectedEngine = ttsEngine;
 
     const uploadDir = process.env.UPLOAD_DIR || './uploads';
     const audioFolder = path.join(uploadDir, 'audio');
@@ -164,7 +166,7 @@ router.post('/tts', requireAuth, requireRole('teacher', 'admin'), async (req, re
     }
   } catch (err) {
     console.error('[TTS ERROR]', err);
-    if (String(err?.message || '').toLowerCase().includes('say') || String(err?.message || '').toLowerCase().includes('voice')) {
+    if (selectedEngine !== 'cloud') {
       return res.status(503).json({ error: 'Local TTS engine unavailable on this server. Use cloud TTS or install system voices.' });
     }
     res.status(500).json({ error: err.message || 'Text-to-speech generation failed' });
