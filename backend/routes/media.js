@@ -90,6 +90,9 @@ router.delete('/:id', requireAuth, (req, res) => {
   const db = getDB();
   const file = db.prepare('SELECT * FROM media_files WHERE id = ?').get(req.params.id);
   if (!file) return res.status(404).json({ error: 'File not found' });
+  if (file.uploaded_by !== req.user.userId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   const isAudio = file.mime_type.startsWith('audio/');
   const filePath = path.join(UPLOAD_DIR, isAudio ? 'audio' : 'images', file.filename);

@@ -190,6 +190,11 @@ router.get('/:id/assignments', requireAuth, requireRole('teacher', 'admin'), (re
 router.delete('/:id', requireAuth, requireRole('teacher', 'admin'), (req, res) => {
   try {
     const db = getDB();
+    const course = db.prepare('SELECT id, created_by FROM courses WHERE id = ?').get(req.params.id);
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+    if (req.user.role !== 'admin' && course.created_by !== req.user.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     db.transaction(() => {
       db.prepare('DELETE FROM course_assignments WHERE course_id = ?').run(req.params.id);
       db.prepare('DELETE FROM course_worksheets WHERE course_id = ?').run(req.params.id);
