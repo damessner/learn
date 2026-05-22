@@ -34,6 +34,21 @@
           </div>
         </div>
 
+        <!-- Vocab / Gamify Sections -->
+        <div class="gamify-sections mt-4">
+          <h3 style="margin-bottom: 8px;">Gamified & Vocab</h3>
+          <div class="block-buttons-grid">
+            <button @click="addBlock('flashcards')" class="btn-add-block" style="border-color:var(--primary)">🗂️ Flashcards</button>
+            <button @click="addBlock('memory_match')" class="btn-add-block" style="border-color:var(--primary)">🃏 Memory Match</button>
+            <button @click="addBlock('word_scramble')" class="btn-add-block" style="border-color:var(--primary)">🔡 Word Scramble</button>
+            <button @click="addBlock('semantic_sorter')" class="btn-add-block" style="border-color:#6366f1">🧠 Semantic Sort</button>
+            <button @click="addBlock('contextual_dialogue')" class="btn-add-block" style="border-color:#6366f1">💬 Dialogue</button>
+            <button @click="addBlock('flow_challenge')" class="btn-add-block" style="border-color:#6366f1">⏳ Flow Game</button>
+          </div>
+          <button @click="openVocabWizard('standard')" class="btn btn-secondary w-full mt-2">🪄 Std Vocab Course</button>
+          <button @click="openVocabWizard('neuro')" class="btn btn-secondary w-full mt-2" style="background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;">🪄 Neuro Vocab Course</button>
+        </div>
+
         <!-- STEM Quick Presets — collapsible accordion -->
         <div class="stem-helper-section card glass mt-4">
           <button class="stem-accordion-toggle" @click="stemOpen = !stemOpen">
@@ -191,14 +206,14 @@
                   <span class="preview-label">✨ Math Instruction Live Preview:</span>
                   <div class="preview-box" v-math="block.instruction"></div>
                 </div>
-                <label>Sentence Template (Put correct answers inside curly braces)</label>
+                <label>Sentence Template (Put correct answers inside double parentheses)</label>
                 <textarea 
                   v-model="block.template" 
-                  placeholder="e.g. She {has gone} to school already. We {have played} basketball." 
+                  placeholder="e.g. She ((has gone)) to school already. We ((have played)) basketball." 
                   rows="3"
                 ></textarea>
                 <span class="field-hint">Student sees: She ______ to school already. Correct answer is "has gone".</span>
-                <div v-if="block.template && (block.template.includes('$') || block.template.includes('{'))" class="math-preview mt-2">
+                <div v-if="block.template && (block.template.includes('$') || block.template.includes('(('))" class="math-preview mt-2">
                   <span class="preview-label">✨ Math Template Live Preview:</span>
                   <div class="preview-box" v-math="getGapFillPreview(block.template)"></div>
                 </div>
@@ -217,9 +232,9 @@
                 <label>Add items (comma separated words that students will drag)</label>
                 <input type="text" :value="block.items.join(', ')" @input="updateDragItems($event, block)" placeholder="e.g. have, has, had" class="mb-2" />
 
-                <label>Add Target Sentences (Use '___' to indicate drop zones. Ensure count matches items)</label>
+                <label>Add Target Sentences (Use ((word)) to indicate drop zones. Ensure count matches items)</label>
                 <div v-for="(target, tIdx) in block.targets" :key="tIdx" class="target-editor-row mb-2">
-                  <input type="text" v-model="block.targets[tIdx]" placeholder="e.g. She ___ left." />
+                  <input type="text" v-model="block.targets[tIdx]" placeholder="e.g. She ((has)) left." />
                   <input type="text" v-model="block.answers[tIdx]" placeholder="Correct word" class="w-xs" />
                   <button @click="removeTarget(block, tIdx)" class="btn-sm btn-danger">×</button>
                 </div>
@@ -704,7 +719,7 @@ import { ref, onMounted, computed } from 'vue'
 
 const getGapFillPreview = (template) => {
   if (!template) return ''
-  return template.replace(/\{([^}]+)\}/g, ' ______ ')
+  return template.replace(/\(\(([^)]+)\)\)/g, ' ______ ')
 }
 import { useRouter, useRoute } from 'vue-router'
 import GapFill from '../components/exercises/GapFill.vue'
@@ -828,7 +843,7 @@ const insertSTEMPreset = (presetType) => {
       type: 'gap_fill',
       points: 3,
       instruction: 'Solve the quadratic equation using the quadratic formula: $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$',
-      template: 'For the equation $x^2 - 5x + 6 = 0$, we have $a = {1}$, $b = {-5}$, and $c = {6}$. The discriminant $D = b^2 - 4ac$ is {1}. The solutions are $x_1 = {3}$ and $x_2 = {2}$.'
+      template: 'For the equation $x^2 - 5x + 6 = 0$, we have $a = ((1))$, $b = ((-5))$, and $c = ((6))$. The discriminant $D = b^2 - 4ac$ is ((1)). The solutions are $x_1 = ((3))$ and $x_2 = ((2))$.'
     }
   } else if (presetType === 'physics_velocity') {
     presetBlock = {
@@ -845,7 +860,7 @@ const insertSTEMPreset = (presetType) => {
       type: 'gap_fill',
       points: 3,
       instruction: 'Balance the combustion reaction of propane.',
-      template: '$$\\text{C}_3\\text{H}_8 + {5}\\text{O}_2 \\rightarrow {3}\\text{CO}_2 + {4}\\text{H}_2\\text{O}$$'
+      template: '$$\\text{C}_3\\text{H}_8 + ((5))\\text{O}_2 \\rightarrow ((3))\\text{CO}_2 + ((4))\\text{H}_2\\text{O}$$'
     }
   } else if (presetType === 'pythagorean') {
     presetBlock = {
@@ -879,12 +894,12 @@ const addBlock = (type) => {
       break
     case 'gap_fill':
       baseBlock.instruction = 'Fill in the blanks.'
-      baseBlock.template = 'She {has} a cat. We {have} a dog.'
+      baseBlock.template = 'She ((has)) a cat. We ((have)) a dog.'
       break
     case 'drag_drop':
       baseBlock.instruction = 'Drag the words to correct gaps.'
       baseBlock.items = ['have', 'has']
-      baseBlock.targets = ['We ___ a dog.', 'She ___ a cat.']
+      baseBlock.targets = ['We ((have)) a dog.', 'She ((has)) a cat.']
       baseBlock.answers = { '0': 'have', '1': 'has' }
       break
     case 'multiple_choice':
@@ -915,6 +930,36 @@ const addBlock = (type) => {
       baseBlock.prompt = 'Explain your answer in 3-5 sentences.'
       baseBlock.sample_answer = ''
       baseBlock.keywordText = ''
+      break
+    case 'flashcards':
+    case 'memory_match':
+    case 'flow_challenge':
+      baseBlock.instruction = type === 'flashcards' ? 'Study the flashcards.' : (type === 'memory_match' ? 'Find the matching pairs.' : 'Test your fluency. Fast!')
+      baseBlock.rawText = 'apple = Apfel\nbanana = Banane\ncherry = Kirsche'
+      baseBlock.pairs = [
+        { l: 'apple', r: 'Apfel' },
+        { l: 'banana', r: 'Banane' },
+        { l: 'cherry', r: 'Kirsche' }
+      ]
+      break
+    case 'word_scramble':
+      baseBlock.instruction = 'Unscramble the letters.'
+      baseBlock.rawText = 'apple = A red fruit\nbanana = A yellow fruit'
+      baseBlock.words = [{ word: 'apple', clue: 'A red fruit' }, { word: 'banana', clue: 'A yellow fruit' }]
+      break
+    case 'semantic_sorter':
+      baseBlock.instruction = 'Sort into categories.'
+      baseBlock.categories = [
+        { name: 'Fruits', words: ['apple', 'banana'] },
+        { name: 'Colors', words: ['red', 'blue'] }
+      ]
+      break
+    case 'contextual_dialogue':
+      baseBlock.instruction = 'Fill the gaps in the chat.'
+      baseBlock.messages = [
+        { sender: 'teacher', isGap: false, text: 'Hello, how are you?' },
+        { sender: 'student', isGap: true, textBefore: 'I am doing ', textAfter: '.', answer: 'well' }
+      ]
       break
   }
 

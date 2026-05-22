@@ -52,10 +52,10 @@ const emit = defineEmits(['update:modelValue'])
 
 const answers = ref([...props.modelValue])
 
-// Parse the template (e.g., "Hello {world}!")
+// Parse the template (e.g., "Hello ((world))!")
 const parsedSegments = computed(() => {
   const segments = []
-  const regex = /\{([^}]+)\}/g
+  const regex = /\(\(([^)]+)\)\)/g
   let lastIndex = 0
   let match
   let gapIndex = 0

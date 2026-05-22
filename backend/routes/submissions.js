@@ -168,9 +168,9 @@ function scoreAnswers(blocks, answers) {
 
     switch (block.type) {
       case 'gap_fill': {
-        // Extract correct answers from template {answer} markers
+        // Extract correct answers from template ((answer)) markers
         const correctAnswers = [];
-        const regex = /\{([^}]+)\}/g;
+        const regex = /\(\(([^)]+)\)\)/g;
         let match;
         while ((match = regex.exec(block.template)) !== null) {
           correctAnswers.push(match[1].toLowerCase().trim());

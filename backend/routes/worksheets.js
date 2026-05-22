@@ -150,8 +150,8 @@ router.get('/:id', requireAuth, (req, res) => {
     content.blocks = content.blocks.map(block => {
       const stripped = { ...block };
       if (block.type === 'gap_fill') {
-        // Replace {answer} markers with ____ for display, keep structure
-        stripped.template_display = block.template.replace(/\{[^}]+\}/g, '____');
+        // Replace ((answer)) markers with ____ for display, keep structure
+        stripped.template_display = block.template.replace(/\(\([^)]+\)\)/g, '____');
         delete stripped.template; // Don't expose answers
         delete stripped.answers;
       }

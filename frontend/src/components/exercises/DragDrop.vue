@@ -102,13 +102,14 @@ watch(answers, (newVal) => {
   emit('update:modelValue', newVal)
 }, { deep: true })
 
-// Helper to parse sentences like "___ you eaten?" into before/after the gap
+// Helper to parse sentences like "((drop zone)) you eaten?" into before/after the gap
 const splitTarget = (targetText) => {
-  const parts = targetText.split('___')
-  return {
-    before: parts[0] || '',
-    after: parts[1] || ''
+  const match = targetText.match(/^(.*?)\(\(([^)]+)\)\)(.*)$/s)
+  if (match) {
+    return { before: match[1] || '', after: match[3] || '' }
   }
+  // Fallback: whole text as before
+  return { before: targetText, after: '' }
 }
 
 // Tap-to-Place functionality (highly friendly for iPad touch)

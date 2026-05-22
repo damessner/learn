@@ -16,7 +16,7 @@
           "id": "blk_tpl_ppps_gap_1",
           "type": "gap_fill",
           "instruction": "Fill in the blanks with the correct form (Past Simple or Present Perfect) of the verb in brackets:",
-          "template": "1. I {saw} a great movie yesterday. (see)\n2. She {has already finished} her homework, so she can play now. (already / finish)\n3. We {went} to London last summer. (go)\n4. They {have lived} in Telfs for five years. (live)",
+          "template": "1. I ((saw)) a great movie yesterday. (see)\n2. She ((has already finished)) her homework, so she can play now. (already / finish)\n3. We ((went)) to London last summer. (go)\n4. They ((have lived)) in Telfs for five years. (live)",
           "points": 4
         },
         {
@@ -25,8 +25,8 @@
           "instruction": "Drag and drop the correct signal words into the correct category:",
           "items": ["yesterday", "since 2018", "in 2015", "already", "two days ago", "never"],
           "targets": [
-            "Past Simple signal words: ___, ___, ___",
-            "Present Perfect signal words: ___, ___, ___"
+            "Past Simple signal words: ((yesterday)), ((in 2015)), ((two days ago))",
+            "Present Perfect signal words: ((since 2018)), ((already)), ((never))"
           ],
           "answers": {
             "0": "yesterday",
@@ -70,7 +70,7 @@
           "id": "blk_tpl_prep_gap_1",
           "type": "gap_fill",
           "instruction": "Fill in the correct preposition of time (in, on, at):",
-          "template": "My birthday is {on} May 24th. School starts {at} 8:00 AM. We usually go skiing {in} winter. I like watching movies {at} night.",
+          "template": "My birthday is ((on)) May 24th. School starts ((at)) 8:00 AM. We usually go skiing ((in)) winter. I like watching movies ((at)) night.",
           "points": 4
         },
         {
@@ -155,7 +155,7 @@
           "id": "blk_tpl_ap_gap_1",
           "type": "gap_fill",
           "instruction": "Transform the active sentences into passive voice:",
-          "template": "1. Active: 'They clean the classrooms every day.'\n   Passive: 'The classrooms {are cleaned} every day.'\n\n2. Active: 'Leo wrote the essay.'\n   Passive: 'The essay {was written} by Leo.'\n\n3. Active: 'She will buy the tickets.'\n   Passive: 'The tickets {will be bought} by her.'",
+          "template": "1. Active: 'They clean the classrooms every day.'\n   Passive: 'The classrooms ((are cleaned)) every day.'\n\n2. Active: 'Leo wrote the essay.'\n   Passive: 'The essay ((was written)) by Leo.'\n\n3. Active: 'She will buy the tickets.'\n   Passive: 'The tickets ((will be bought)) by her.'",
           "points": 3
         }
       ]
