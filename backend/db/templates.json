@@ -3,7 +3,7 @@
     "id": "tpl_present_perfect_past_simple",
     "title": "Present Perfect vs. Past Simple",
     "description": "Interactive grammar quiz testing the difference between actions completed in the past and actions related to the present.",
-    "subject": "English",
+    "subject": "Englisch",
     "grade_level": "3. Klasse",
     "content": {
       "blocks": [
@@ -57,7 +57,7 @@
     "id": "tpl_prepositions_challenge",
     "title": "Grammar Challenge: Prepositions",
     "description": "Learn and practice prepositions of place and time (in, on, at, under, next to).",
-    "subject": "English",
+    "subject": "Englisch",
     "grade_level": "1. & 2. Klasse",
     "content": {
       "blocks": [
@@ -94,7 +94,7 @@
     "id": "tpl_vocab_irregular_verbs",
     "title": "Vocabulary Builder: Irregular Verbs",
     "description": "Writing training loop for key irregular verbs (Infinitive -> Deutsch). Autocorrect is disabled for strict spelling practice.",
-    "subject": "English",
+    "subject": "Englisch",
     "grade_level": "2. & 3. Klasse",
     "content": {
       "blocks": [
@@ -129,7 +129,7 @@
     "id": "tpl_active_passive_voice",
     "title": "Active vs. Passive Voice Challenge",
     "description": "Advanced grammar worksheets testing active and passive sentence transformations.",
-    "subject": "English",
+    "subject": "Englisch",
     "grade_level": "4. Klasse",
     "content": {
       "blocks": [
@@ -157,6 +157,163 @@
           "instruction": "Transform the active sentences into passive voice:",
           "template": "1. Active: 'They clean the classrooms every day.'\n   Passive: 'The classrooms ((are cleaned)) every day.'\n\n2. Active: 'Leo wrote the essay.'\n   Passive: 'The essay ((was written)) by Leo.'\n\n3. Active: 'She will buy the tickets.'\n   Passive: 'The tickets ((will be bought)) by her.'",
           "points": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_math_fractions",
+    "title": "Bruchrechnen Grundlagen",
+    "description": "Übungen zum Erweitern, Kürzen und Addieren von einfachen Brüchen.",
+    "subject": "Mathematik",
+    "grade_level": "2. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_math_frac_text",
+          "type": "text",
+          "content": "# Einführung in Brüche\nEin Bruch besteht aus einem Zähler (oben) und einem Nenner (unten). Zum Beispiel: $$\\frac{1}{2}$$.\n\n- **Kürzen**: Zähler und Nenner durch dieselbe Zahl teilen.\n- **Erweitern**: Zähler und Nenner mit derselben Zahl multiplizieren."
+        },
+        {
+          "id": "blk_math_frac_gap",
+          "type": "gap_fill",
+          "instruction": "Kürze oder erweitere die Brüche richtig:",
+          "template": "1. Erweitere $$\\frac{1}{2}$$ mit 3: $$\\frac{((3))}{((6))}$$\n2. Kürze $$\\frac{4}{8}$$ so weit wie möglich: $$\\frac{((1))}{((2))}$$",
+          "points": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_deutsch_wortarten",
+    "title": "Wortarten bestimmen",
+    "description": "Bestimme Nomen, Verben und Adjektive in Sätzen und übe die Groß- und Kleinschreibung.",
+    "subject": "Deutsch",
+    "grade_level": "1. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_de_wortarten_text",
+          "type": "text",
+          "content": "# Die Wortarten\n- **Nomen (Namenwörter)**: Werden großgeschrieben. (z. B. Hund, Schule)\n- **Verben (Tunwörter)**: Was tut jemand? (z. B. laufen, lernen)\n- **Adjektive (Wiewörter)**: Wie ist etwas? (z. B. schnell, schön)"
+        },
+        {
+          "id": "blk_de_wortarten_gap",
+          "type": "gap_fill",
+          "instruction": "Fülle die Lücken mit der passenden Wortart aus (Nomen, Verb, Adjektiv):",
+          "template": "1. Das Wort 'gehen' ist ein ((Verb)).\n2. Das Wort 'groß' ist ein ((Adjektiv)).\n3. Das Wort 'Tisch' ist ein ((Nomen)).",
+          "points": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_geo_oceans",
+    "title": "Kontinente und Ozeane",
+    "description": "Lerne die 7 Kontinente und die Weltmeere kennen.",
+    "subject": "Geographie",
+    "grade_level": "1. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_geo_oceans_text",
+          "type": "text",
+          "content": "# Unsere Erde\nEs gibt 7 Kontinente auf der Erde: Asien, Afrika, Nordamerika, Südamerika, Antarktika, Europa und Australien.\nDie drei größten Ozeane sind der Pazifische Ozean, der Atlantische Ozean und der Indische Ozean."
+        },
+        {
+          "id": "blk_geo_oceans_match",
+          "type": "matching",
+          "instruction": "Ordne den Kontinenten ihre Besonderheiten zu:",
+          "left": ["Asien", "Australien", "Antarktika", "Afrika"],
+          "right": ["Größter Kontinent", "Kleinstes Land & Kontinent", "Kältester Kontinent", "Zweitgrößter Kontinent"],
+          "pairs": [
+            ["Asien", "Größter Kontinent"],
+            ["Australien", "Kleinstes Land & Kontinent"],
+            ["Antarktika", "Kältester Kontinent"],
+            ["Afrika", "Zweitgrößter Kontinent"]
+          ],
+          "points": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_bio_plant_cell",
+    "title": "Die Pflanzenzelle",
+    "description": "Struktur und Funktion der wichtigsten Organellen einer pflanzlichen Zelle.",
+    "subject": "Biologie",
+    "grade_level": "3. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_bio_cell_text",
+          "type": "text",
+          "content": "# Die pflanzliche Zelle\nPflanzenzellen unterscheiden sich von Tierzellen vor allem durch drei Dinge:\n1. **Zellwand**: Gibt der Zelle Stabilität.\n2. **Vakuole**: Speichert Wasser und Nährstoffe.\n3. **Chloroplasten**: Verantwortlich für die Fotosynthese (enthalten Blattgrün)."
+        },
+        {
+          "id": "blk_bio_cell_mc",
+          "type": "multiple_choice",
+          "instruction": "Welche Organellen kommen NUR in Pflanzenzellen vor? (Wähle alle richtigen aus)",
+          "options": [
+            "Zellwand",
+            "Zellkern",
+            "Chloroplasten",
+            "Mitochondrien"
+          ],
+          "correct": [0, 2],
+          "points": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_chem_pse",
+    "title": "Einführung in das Periodensystem",
+    "description": "Lerne die chemischen Elemente, Symbole und Ordnungszahlen kennen.",
+    "subject": "Chemie",
+    "grade_level": "4. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_chem_pse_text",
+          "type": "text",
+          "content": "# Das Periodensystem der Elemente (PSE)\nDie Elemente sind nach ihrer Ordnungszahl sortiert. Jedes Element hat ein Symbol:\n- **H**: Wasserstoff (Ordnungszahl 1)\n- **He**: Helium (Ordnungszahl 2)\n- **O**: Sauerstoff (Ordnungszahl 8)\n- **C**: Kohlenstoff (Ordnungszahl 6)"
+        },
+        {
+          "id": "blk_chem_pse_gap",
+          "type": "gap_fill",
+          "instruction": "Trage das passende chemische Elementsymbol ein:",
+          "template": "1. Wasserstoff hat das Symbol ((H)).\n2. Sauerstoff hat das Symbol ((O)).\n3. Kohlenstoff hat das Symbol ((C)).",
+          "points": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "tpl_phys_circuit",
+    "title": "Der elektrische Stromkreis",
+    "description": "Grundlagen zu Stromstärke, Spannung, Widerstand und Reihen-/Parallelschaltungen.",
+    "subject": "Physik",
+    "grade_level": "3. Klasse",
+    "content": {
+      "blocks": [
+        {
+          "id": "blk_phys_circuit_text",
+          "type": "text",
+          "content": "# Der Stromkreis\nEin einfacher Stromkreis besteht aus einer Spannungsquelle (z.B. Batterie), Leitern (Kabeln) und einem Verbraucher (z.B. Glühbirne).\n- **Spannung (U)** wird in Volt (V) gemessen.\n- **Stromstärke (I)** wird in Ampere (A) gemessen.\n- **Widerstand (R)** wird in Ohm (\\Omega) gemessen.\nEs gilt das Ohmsche Gesetz: $$U = R \\cdot I$$."
+        },
+        {
+          "id": "blk_phys_circuit_sc",
+          "type": "single_choice",
+          "instruction": "In welcher Einheit wird der elektrische Widerstand gemessen?",
+          "options": [
+            "Volt",
+            "Ohm",
+            "Ampere",
+            "Watt"
+          ],
+          "correct": 1,
+          "points": 1
         }
       ]
     }
