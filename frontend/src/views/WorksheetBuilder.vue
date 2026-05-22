@@ -14,187 +14,128 @@
       </div>
     </header>
 
-    <div class="builder-layout">
-      <!-- Left Panel: Worksheet Info & Block Manager -->
-      <div class="sidebar-panel card">
-
-        <!-- Add Question / Content — TOP of sidebar -->
-        <div class="add-blocks-section">
-          <h3>Presentation</h3>
-          <div class="block-buttons-grid">
-            <button @click="addBlock('text')" class="btn-add-block" title="Display text, instructions, or reading material">
-              <span class="btn-text">📝 Instructions</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('image')" class="btn-add-block" title="Show a picture or illustration">
-              <span class="btn-text">🖼️ Image</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('audio')" class="btn-add-block" title="Play a sound or voice recording">
-              <span class="btn-text">🎵 Audio</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('tts_text')" class="btn-add-block" title="Display text that is read aloud by a natural neural voice">
-              <span class="btn-text">🗣️ Read Aloud</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-          </div>
-
-          <h3 class="mt-4">Basic Questions</h3>
-          <div class="block-buttons-grid">
-            <button @click="addBlock('single_choice')" class="btn-add-block" title="Multiple options, only one correct answer">
-              <span class="btn-text">🔘 Single Choice</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('multiple_choice')" class="btn-add-block" title="Multiple options, multiple correct answers">
-              <span class="btn-text">☑️ Multi Choice</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('short_answer')" class="btn-add-block" title="Text box for a brief, open-ended answer">
-              <span class="btn-text">📝 Short Answer</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-          </div>
-
-          <h3 class="mt-4">Interactive Questions</h3>
-          <div class="block-buttons-grid">
-            <button @click="addBlock('gap_fill')" class="btn-add-block" title="Students type missing words into blanks">
-              <span class="btn-text">✏️ Gap Fill</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('drag_drop')" class="btn-add-block" title="Drag and drop words into designated drop zones">
-              <span class="btn-text">👉 Drag & Drop</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('matching')" class="btn-add-block" title="Match items on the left to items on the right">
-              <span class="btn-text">🔗 Connect Texts</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Vocab / Gamify Sections -->
-        <div class="gamify-sections mt-4">
-          <h3 style="margin-bottom: 8px;">Gamified Learning</h3>
-          <div class="block-buttons-grid">
-            <button @click="addBlock('flashcards')" class="btn-add-block" style="border-color:var(--primary)" title="Learn terms step-by-step with flip cards">
-              <span class="btn-text">🗂️ Flashcards</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('memory_match')" class="btn-add-block" style="border-color:var(--primary)" title="Flip cards to find matching pairs">
-              <span class="btn-text">🃏 Memory Match</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('word_scramble')" class="btn-add-block" style="border-color:var(--primary)" title="Unscramble letters to form words">
-              <span class="btn-text">🔡 Word Scramble</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('semantic_sorter')" class="btn-add-block" style="border-color:#6366f1" title="Categorize terms by their meaning">
-              <span class="btn-text">🧠 Semantic Sort</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('contextual_dialogue')" class="btn-add-block" style="border-color:#6366f1" title="Roleplay a conversation with interactive blanks">
-              <span class="btn-text">💬 Dialogue</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-            <button @click="addBlock('flow_challenge')" class="btn-add-block" style="border-color:#6366f1" title="Fast-paced challenge against the clock">
-              <span class="btn-text">⏳ Flow Game</span>
-              <span class="info-icon">ℹ️</span>
-            </button>
-          </div>
-          <button @click="openVocabWizard('standard')" class="btn btn-secondary w-full mt-2" title="Generate standard exercises from a vocabulary list">🪄 Std Vocab Course</button>
-          <button @click="openVocabWizard('neuro')" class="btn btn-secondary w-full mt-2" style="background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;" title="Generate a full gamified neuro-learning course from a vocab list">🪄 Neuro Vocab Course</button>
-        </div>
-
-        <!-- STEM Quick Presets — collapsible accordion -->
-        <div class="stem-helper-section card glass mt-4">
-          <button class="stem-accordion-toggle" @click="stemOpen = !stemOpen">
-            <span>📐 STEM Quick Presets</span>
-            <span class="stem-chevron" :class="{ open: stemOpen }">▾</span>
+    <div class="builder-layout" :class="{ 'left-collapsed': !leftExpanded, 'right-collapsed': !rightExpanded }">
+      <!-- Left Column: Block Toolbox -->
+      <div class="sidebar-panel card toolbox-panel" :class="{ collapsed: !leftExpanded }" @click="if (!leftExpanded) leftExpanded = true">
+        <div class="panel-header-toggle">
+          <h3 v-if="leftExpanded" class="panel-title">🛠️ Toolbox</h3>
+          <button class="btn-collapse" @click.stop="leftExpanded = !leftExpanded" :title="leftExpanded ? 'Collapse Panel' : 'Expand Panel'">
+            {{ leftExpanded ? '◀' : '▶' }}
           </button>
-          <transition name="stem-expand">
-            <div v-if="stemOpen" class="stem-accordion-body">
-              <p class="field-hint mb-2">Click to insert preformatted LaTeX math/science exercises:</p>
-              <div class="stem-presets">
-                <button @click="insertSTEMPreset('quadratic')" class="btn btn-secondary btn-sm">📐 Math: Quadratic Equation (Gap Fill)</button>
-                <button @click="insertSTEMPreset('physics_velocity')" class="btn btn-secondary btn-sm">⚡ Physics: Velocity & Units (Short Answer)</button>
-                <button @click="insertSTEMPreset('chemistry_reaction')" class="btn btn-secondary btn-sm">🧪 Chem: Reaction Balancing (Gap Fill)</button>
-                <button @click="insertSTEMPreset('pythagorean')" class="btn btn-secondary btn-sm">📐 Geometry: Pythagorean (Short Answer)</button>
-              </div>
+        </div>
+
+        <div class="toolbox-content" :class="{ 'is-collapsed': !leftExpanded }">
+          <!-- Add Question / Content -->
+          <div class="add-blocks-section">
+            <h3 v-if="leftExpanded">Presentation</h3>
+            <div class="block-buttons-grid">
+              <button @click="addBlock('text')" class="btn-add-block" title="Display text, instructions, or reading material">
+                <span class="btn-icon">📝</span>
+                <span class="btn-text" v-if="leftExpanded">Instructions</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('image')" class="btn-add-block" title="Show a picture or illustration">
+                <span class="btn-icon">🖼️</span>
+                <span class="btn-text" v-if="leftExpanded">Image</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('audio')" class="btn-add-block" title="Play a sound or voice recording">
+                <span class="btn-icon">🎵</span>
+                <span class="btn-text" v-if="leftExpanded">Audio</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('tts_text')" class="btn-add-block" title="Display text that is read aloud by a natural neural voice">
+                <span class="btn-icon">🗣️</span>
+                <span class="btn-text" v-if="leftExpanded">Read Aloud</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
             </div>
-          </transition>
-        </div>
 
-        <h3 style="margin-top: 20px;">General Settings</h3>
-        <div class="form-group">
-          <label>Builder Mode</label>
-          <select v-model="builderMode">
-            <option value="basic">Basic</option>
-            <option value="advanced">Advanced</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Worksheet Title</label>
-          <input type="text" v-model="sheet.title" placeholder="e.g. Present Perfect Practice" />
-        </div>
-        <div class="form-group">
-          <label>Description / Instructions</label>
-          <textarea v-model="sheet.description" placeholder="Instructions for students..." rows="3"></textarea>
-        </div>
-        <div class="form-group-row">
-          <div class="form-group">
-            <label>Subject</label>
-            <input type="text" v-model="sheet.subject" placeholder="e.g. English" />
-          </div>
-          <div class="form-group" v-if="builderMode === 'advanced'">
-            <label>Grade Level</label>
-            <input type="text" v-model="sheet.grade_level" placeholder="e.g. 3a" />
-          </div>
-          <div class="form-group" v-if="builderMode === 'advanced'">
-            <label>Tags</label>
-            <input type="text" v-model="sheet.tags" placeholder="e.g. grammar, vocabulary, beginner" />
-          </div>
-        </div>
-        <div class="form-group" v-if="builderMode === 'advanced'">
-          <label>Rubric (one criterion per line: name|weight|description)</label>
-          <textarea v-model="sheet.rubricText" rows="3" placeholder="Accuracy|50|Correctness of answers&#10;Clarity|25|Clear explanations"></textarea>
-        </div>
+            <h3 class="mt-4" v-if="leftExpanded">Basic Questions</h3>
+            <div class="block-buttons-grid">
+              <button @click="addBlock('single_choice')" class="btn-add-block" title="Multiple options, only one correct answer">
+                <span class="btn-icon">🔘</span>
+                <span class="btn-text" v-if="leftExpanded">Single Choice</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('multiple_choice')" class="btn-add-block" title="Multiple options, multiple correct answers">
+                <span class="btn-icon">☑️</span>
+                <span class="btn-text" v-if="leftExpanded">Multi Choice</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('short_answer')" class="btn-add-block" title="Text box for a brief, open-ended answer">
+                <span class="btn-icon">📝</span>
+                <span class="btn-text" v-if="leftExpanded">Short Answer</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+            </div>
 
-        <div class="ai-section">
-          <h3>AI Worksheet Draft</h3>
-          <button @click="openWizardModal" class="btn btn-primary" style="width: 100%; margin-bottom: 12px; font-weight: bold; background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;">
-            🪄 Launch AI Wizard
-          </button>
-          
-          <div class="ai-divider">
-            <span>OR MANUAL PROMPT</span>
+            <h3 class="mt-4" v-if="leftExpanded">Interactive Questions</h3>
+            <div class="block-buttons-grid">
+              <button @click="addBlock('gap_fill')" class="btn-add-block" title="Students type missing words into blanks">
+                <span class="btn-icon">✏️</span>
+                <span class="btn-text" v-if="leftExpanded">Gap Fill</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('drag_drop')" class="btn-add-block" title="Drag and drop words into designated drop zones">
+                <span class="btn-icon">👉</span>
+                <span class="btn-text" v-if="leftExpanded">Drag & Drop</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('matching')" class="btn-add-block" title="Match items on the left to items on the right">
+                <span class="btn-icon">🔗</span>
+                <span class="btn-text" v-if="leftExpanded">Connect Texts</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label>Provider</label>
-            <select v-model="aiProvider">
-              <option value="gemini">Gemini API</option>
-              <option value="ollama">Ollama (local)</option>
-              <option value="auto">Auto (Gemini fallback to Ollama)</option>
-            </select>
+          <!-- Vocab / Gamify Sections -->
+          <div class="gamify-sections mt-4">
+            <h3 style="margin-bottom: 8px;" v-if="leftExpanded">Gamified Learning</h3>
+            <div class="block-buttons-grid">
+              <button @click="addBlock('flashcards')" class="btn-add-block" style="border-color:var(--primary)" title="Learn terms step-by-step with flip cards">
+                <span class="btn-icon">🗂️</span>
+                <span class="btn-text" v-if="leftExpanded">Flashcards</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('memory_match')" class="btn-add-block" style="border-color:var(--primary)" title="Flip cards to find matching pairs">
+                <span class="btn-icon">🃏</span>
+                <span class="btn-text" v-if="leftExpanded">Memory Match</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('word_scramble')" class="btn-add-block" style="border-color:var(--primary)" title="Unscramble letters to form words">
+                <span class="btn-icon">🔡</span>
+                <span class="btn-text" v-if="leftExpanded">Word Scramble</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('semantic_sorter')" class="btn-add-block" style="border-color:#6366f1" title="Categorize terms by their meaning">
+                <span class="btn-icon">🧠</span>
+                <span class="btn-text" v-if="leftExpanded">Semantic Sort</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('contextual_dialogue')" class="btn-add-block" style="border-color:#6366f1" title="Roleplay a conversation with interactive blanks">
+                <span class="btn-icon">💬</span>
+                <span class="btn-text" v-if="leftExpanded">Dialogue</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+              <button @click="addBlock('flow_challenge')" class="btn-add-block" style="border-color:#6366f1" title="Fast-paced challenge against the clock">
+                <span class="btn-icon">⏳</span>
+                <span class="btn-text" v-if="leftExpanded">Flow Game</span>
+                <span class="info-icon" v-if="leftExpanded">ℹ️</span>
+              </button>
+            </div>
+            <button @click="openVocabWizard('standard')" class="btn btn-secondary w-full mt-2" title="Generate standard exercises from a vocabulary list">
+              <span>🪄</span><span v-if="leftExpanded"> Std Vocab Course</span>
+            </button>
+            <button @click="openVocabWizard('neuro')" class="btn btn-secondary w-full mt-2" style="background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;" title="Generate a full gamified neuro-learning course from a vocab list">
+              <span>🪄</span><span v-if="leftExpanded"> Neuro Vocab Course</span>
+            </button>
           </div>
-          <div class="form-group">
-            <label>Prompt</label>
-            <textarea
-              v-model="aiPrompt"
-              rows="4"
-              placeholder="Example: Create a short A2 English worksheet about present perfect with one text block, 2 gap fills, 1 multiple-choice, and 1 matching."
-            ></textarea>
-          </div>
-          <button @click="generateWorksheetWithAI" :disabled="aiLoading" class="btn btn-secondary">
-            {{ aiLoading ? 'Generating…' : 'Generate Worksheet with AI' }}
-          </button>
-          <span class="field-hint">Imports title/description/subject/grade and blocks from AI JSON.</span>
         </div>
-
       </div>
 
-      <!-- Right Panel: Worksheet Preview / List of active blocks -->
+      <!-- Center Column: Worksheet Preview / List of active blocks -->
       <div class="main-preview-panel">
         <div v-if="sheet.blocks.length === 0" class="empty-builder card glass">
           <span>✨</span>
@@ -508,6 +449,112 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Settings, STEM, AI Copilot -->
+      <div class="sidebar-panel card settings-panel" :class="{ collapsed: !rightExpanded }" @click="if (!rightExpanded) rightExpanded = true">
+        <div class="panel-header-toggle">
+          <h3 v-if="rightExpanded" class="panel-title">⚙️ Document</h3>
+          <button class="btn-collapse" @click.stop="rightExpanded = !rightExpanded" :title="rightExpanded ? 'Collapse Panel' : 'Expand Panel'">
+            {{ rightExpanded ? '▶' : '◀' }}
+          </button>
+        </div>
+
+        <div v-if="rightExpanded" class="settings-content">
+          <!-- General Settings -->
+          <h3>General Settings</h3>
+          <div class="form-group">
+            <label>Builder Mode</label>
+            <select v-model="builderMode">
+              <option value="basic">Basic</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Worksheet Title</label>
+            <input type="text" v-model="sheet.title" placeholder="e.g. Present Perfect Practice" />
+          </div>
+          <div class="form-group">
+            <label>Description / Instructions</label>
+            <textarea v-model="sheet.description" placeholder="Instructions for students..." rows="3"></textarea>
+          </div>
+          <div class="form-group-row">
+            <div class="form-group">
+              <label>Subject</label>
+              <input type="text" v-model="sheet.subject" placeholder="e.g. English" />
+            </div>
+            <div class="form-group" v-if="builderMode === 'advanced'">
+              <label>Grade Level</label>
+              <input type="text" v-model="sheet.grade_level" placeholder="e.g. 3a" />
+            </div>
+            <div class="form-group" v-if="builderMode === 'advanced'">
+              <label>Tags</label>
+              <input type="text" v-model="sheet.tags" placeholder="e.g. grammar, vocabulary, beginner" />
+            </div>
+          </div>
+          <div class="form-group" v-if="builderMode === 'advanced'">
+            <label>Rubric (one criterion per line: name|weight|description)</label>
+            <textarea v-model="sheet.rubricText" rows="3" placeholder="Accuracy|50|Correctness of answers&#10;Clarity|25|Clear explanations"></textarea>
+          </div>
+
+          <!-- STEM Quick Presets — collapsible accordion -->
+          <div class="stem-helper-section card glass mt-4">
+            <button class="stem-accordion-toggle" @click="stemOpen = !stemOpen">
+              <span>📐 STEM Quick Presets</span>
+              <span class="stem-chevron" :class="{ open: stemOpen }">▾</span>
+            </button>
+            <transition name="stem-expand">
+              <div v-if="stemOpen" class="stem-accordion-body">
+                <p class="field-hint mb-2">Click to insert preformatted LaTeX math/science exercises:</p>
+                <div class="stem-presets">
+                  <button @click="insertSTEMPreset('quadratic')" class="btn btn-secondary btn-sm">📐 Math: Quadratic Equation (Gap Fill)</button>
+                  <button @click="insertSTEMPreset('physics_velocity')" class="btn btn-secondary btn-sm">⚡ Physics: Velocity & Units (Short Answer)</button>
+                  <button @click="insertSTEMPreset('chemistry_reaction')" class="btn btn-secondary btn-sm">🧪 Chem: Reaction Balancing (Gap Fill)</button>
+                  <button @click="insertSTEMPreset('pythagorean')" class="btn btn-secondary btn-sm">📐 Geometry: Pythagorean (Short Answer)</button>
+                </div>
+              </div>
+            </transition>
+          </div>
+
+          <!-- AI Draft Section -->
+          <div class="ai-section mt-4">
+            <h3>AI Worksheet Draft</h3>
+            <button @click="openWizardModal" class="btn btn-primary" style="width: 100%; margin-bottom: 12px; font-weight: bold; background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%); color: white; border: none;">
+              🪄 Launch AI Wizard
+            </button>
+            
+            <div class="ai-divider">
+              <span>OR MANUAL PROMPT</span>
+            </div>
+
+            <div class="form-group">
+              <label>Provider</label>
+              <select v-model="aiProvider">
+                <option value="gemini">Gemini API</option>
+                <option value="ollama">Ollama (local)</option>
+                <option value="auto">Auto (Gemini fallback to Ollama)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Prompt</label>
+              <textarea
+                v-model="aiPrompt"
+                rows="4"
+                placeholder="Example: Create a short A2 English worksheet about present perfect with one text block, 2 gap fills, 1 multiple-choice, and 1 matching."
+              ></textarea>
+            </div>
+            <button @click="generateWorksheetWithAI" :disabled="aiLoading" class="btn btn-secondary">
+              {{ aiLoading ? 'Generating…' : 'Generate Worksheet with AI' }}
+            </button>
+            <span class="field-hint">Imports title/description/subject/grade and blocks from AI JSON.</span>
+          </div>
+        </div>
+
+        <div v-else class="panel-collapsed-icons">
+          <div class="collapsed-icon-group" title="General Settings">⚙️</div>
+          <div class="collapsed-icon-group" title="STEM Presets">📐</div>
+          <div class="collapsed-icon-group" title="AI Copilot">🪄</div>
         </div>
       </div>
     </div>
@@ -983,6 +1030,8 @@ const aiProvider = ref('gemini')
 const aiPrompt = ref('')
 const builderMode = ref('basic')
 const stemOpen = ref(false)
+const leftExpanded = ref(true)
+const rightExpanded = ref(true)
 
 // AI Wizard State Variables
 const showStartWizard = ref(false)
